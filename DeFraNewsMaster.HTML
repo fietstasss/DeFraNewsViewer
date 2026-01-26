@@ -9,54 +9,52 @@
     </style>
 </head>
 <body>
+    <div id="status"></div>
     <iframe id="master-frame" src="about:blank"></iframe>
 
     <script>
-        /**
-         * MASTER CONFIGURATION
-         */
-        const MASTER_CONFIG = {
-            playlistUrl: "playlist.json", // The file Power Automate will update
-            displayTimePerItem: 30000     // Default 30 seconds per news item
-        };
+        // 1. Extract the playlist URL from the browser's address bar (?list=...)
+        const urlParams = new URLSearchParams(window.location.search);
+        const playlistSource = urlParams.get('list');
+        const displayTime = parseInt(urlParams.get('time')) || 30000;
 
         let playlist = [];
         let currentIndex = 0;
         const frame = document.getElementById('master-frame');
 
-        // Function to fetch the latest playlist from GitHub
         async function updatePlaylist() {
+            if (!playlistSource) {
+                document.getElementById('status').innerHTML = "<h2 style='color:red; font-family:sans-serif; padding:20px;'>Error: No 'list' parameter found in URL.</h2>";
+                return;
+            }
+
             try {
-                const response = await fetch(MASTER_CONFIG.playlistUrl + "?v=" + Date.now());
+                // Fetch the JSON from the provided source
+                const response = await fetch(playlistSource + (playlistSource.includes('?') ? '&' : '?') + "t=" + Date.now());
                 const data = await response.json();
                 playlist = data.articles || [];
-                console.log("Playlist updated:", playlist);
             } catch (e) {
-                console.error("Could not load playlist.json", e);
+                console.error("Failed to load playlist", e);
             }
         }
 
         async function playNext() {
-            // Refresh playlist data when we start over
-            if (currentIndex === 0) {
-                await updatePlaylist();
+            if (currentIndex === 0) await updatePlaylist();
+
+            if (playlist.length > 0) {
+                const targetUrl = playlist[currentIndex];
+                frame.src = targetUrl + (targetUrl.includes('?') ? '&' : '?') + "v=" + Date.now();
+                currentIndex = (currentIndex + 1) % playlist.length;
             }
-
-            if (playlist.length === 0) {
-                document.body.innerHTML = "<h1 style='color:white; font-family:sans-serif; padding:50px;'>Wachten op berichten...</h1>";
-                setTimeout(playNext, 5000);
-                return;
-            }
-
-            const targetUrl = playlist[currentIndex];
-            frame.src = targetUrl + (targetUrl.includes('?') ? '&' : '?') + "v=" + Date.now();
-
-            currentIndex = (currentIndex + 1) % playlist.length;
         }
 
-        // Start cycling
-        setInterval(playNext, MASTER_CONFIG.displayTimePerItem);
-        playNext();
+        if (playlistSource) {
+            setInterval(playNext, displayTime);
+            playNext();
+        } else {
+            // Show instructions if no list is provided
+            document.body.innerHTML = "<div style='color:white; font-family:sans-serif; padding:40px;'><h2>DeFra Master Loader</h2><p>Provide a playlist via the URL: ?list=[SharePointLink]</p></div>";
+        }
     </script>
 </body>
 </html>
