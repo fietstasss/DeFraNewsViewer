@@ -118,7 +118,7 @@
         };
     </script> -->
 
-    <script>
+    <!-- <script>
         function getQueryParam(param) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(param);
@@ -139,8 +139,37 @@
                 document.getElementById('view-img2').src = img;
             }
         };
+    </script> -->
+
+    <script>
+        // 1. Meld aan de wrapper dat de template klaar is om data te ontvangen
+        window.onload = function() {
+            window.parent.postMessage('READY', '*');
+        };
+    
+        // 2. Luister naar de binnenkomende data
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data !== 'READY') {
+                const data = event.data;
+                
+                // Vul de velden in op basis van jouw HTML ID's
+                document.getElementById('view-title').innerText = data.title || '';
+                document.getElementById('view-subtitle').innerText = data.subtitle || '';
+                document.getElementById('view-text').innerText = data.content || '';
+                document.getElementById('view-date').innerText = data.date || '';
+                document.getElementById('view-authors').innerText = data.authors || '';
+                
+                // Foto logica
+                if(data.image && data.image !== "__IMAGEBASE64PLACEHOLDER__") {
+                    document.getElementById('view-img1').src = data.image;
+                    document.getElementById('view-img2').src = data.image;
+                }
+            }
+        });
     </script>
 
 
+
 </body>
+
 </html>
