@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary-blue: #1a4a7c;
+            --accent-orange: #e67e22;
+            --text-dark: #2c3e50;
+            --white: #ffffff;
+            --light-bg: #fcfcfc;
+            --scroll-speed: 20s; 
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { height: 100%; width: 100%; font-family: 'Segoe UI', sans-serif; background-color: var(--white); overflow: hidden; }
+        .fullscreen-wrapper { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 0 50px; height: 100px; background: var(--white); border-bottom: 2px solid #eee; flex-shrink: 0; }
+        .logo { font-weight: 900; font-size: 2.5rem; color: var(--text-dark); }
+        .main-title { font-size: 2.2rem; color: var(--text-dark); border-right: 8px solid var(--accent-orange); padding-right: 20px; }
+
+        .info-bar { background-color: var(--primary-blue); color: white; padding: 0 50px; height: 50px; display: flex; align-items: center; justify-content: space-between; font-size: 1.2rem; flex-shrink: 0; }
+
+        /* Grid */
+        .main-content { display: grid; grid-template-columns: 45% 55%; flex-grow: 1; overflow: hidden; }
+        .image-side { display: grid; grid-template-rows: 1fr 1fr; height: 100%; }
+        .image-container img { width: 100%; height: 100%; object-fit: cover; border: 5px solid var(--white); }
+
+        /* Tekst */
+        .text-side { background-color: var(--light-bg); padding: 60px 80px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        .sub-header { font-size: 2.8rem; color: var(--accent-orange); font-weight: 800; margin-bottom: 30px; line-height: 1.2; flex-shrink: 0; background-color: var(--light-bg); z-index: 10; }
+
+        .scroll-window { flex-grow: 1; overflow: hidden; position: relative; }
+        .scroll-container { display: flex; flex-direction: column; animation: autoScroll var(--scroll-speed) linear infinite; }
+
+        @keyframes autoScroll {
+            0% { transform: translateY(0); }
+            15% { transform: translateY(0); }
+            80% { transform: translateY(calc(-100% + 400px)); }
+            90% { transform: translateY(calc(-100% + 400px)); }
+            100% { transform: translateY(0); }
+        }
+
+        .text-content { font-size: 1.6rem; line-height: 1.8; color: var(--text-dark); white-space: pre-wrap; }
+        .text-content p { margin-bottom: 40px; }
+    </style>
+</head>
+<body>
+    <div class="fullscreen-wrapper">
+        <header class="header">
+            <div class="logo">DEFRA NEWS</div>
+            <div class="main-title" id="view-title">Laden...</div>
+        </header>
+
+        <div class="info-bar">
+            <span id="view-date"></span>
+            <span id="view-authors"></span>
+        </div>
+
+        <main class="main-content">
+            <section class="image-side">
+                <div class="image-container"><img id="view-img1" src="" alt=""></div>
+                <div class="image-container"><img id="view-img2" src="" alt=""></div>
+            </section>
+
+            <article class="text-side">
+                <h2 class="sub-header" id="view-subtitle"></h2>
+                <div class="scroll-window">
+                    <div class="scroll-container">
+                        <div class="text-content" id="view-text"></div>
+                    </div>
+                </div>
+            </article>
+        </main>
+    </div>
+
+    <!-- <script>
+        // Luister naar data van het moeder-bestand (de iframe wrapper)
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+            if (data) {
+                document.getElementById('view-title').innerText = data.title || '';
+                document.getElementById('view-subtitle').innerText = data.subtitle || '';
+                document.getElementById('view-text').innerText = data.content || '';
+                document.getElementById('view-date').innerText = data.date || '';
+                document.getElementById('view-authors').innerText = data.authors || '';
+                
+                if(data.image) {
+                    document.getElementById('view-img1').src = data.image;
+                    document.getElementById('view-img2').src = data.image; // Gebruik zelfde foto voor beide vakken
+                }
+            }
+        });
+    </script> -->
+
+    <!-- <script>
+        // Functie om data uit de URL te vissen
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+    
+        window.onload = function() {
+            document.getElementById('view-title').innerText = getQueryParam('title') || 'Geen titel';
+            document.getElementById('view-subtitle').innerText = getQueryParam('subtitle') || '';
+            document.getElementById('view-text').innerText = getQueryParam('content') || '';
+            document.getElementById('view-date').innerText = getQueryParam('date') || '';
+            document.getElementById('view-authors').innerText = getQueryParam('authors') || '';
+            
+            const img = getQueryParam('image');
+            if(img && img !== "__IMAGEBASE64PLACEHOLDER__") {
+                document.getElementById('view-img1').src = img;
+                document.getElementById('view-img2').src = img;
+            }
+        };
+    </script> -->
+
+    <script>
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+    
+        window.onload = function() {
+            // We gebruiken decodeURIComponent om de gekke tekens uit de URL weer leesbaar te maken
+            document.getElementById('view-title').innerText = getQueryParam('title') || 'Geen titel';
+            document.getElementById('view-subtitle').innerText = getQueryParam('subtitle') || '';
+            document.getElementById('view-text').innerText = getQueryParam('content') || '';
+            document.getElementById('view-date').innerText = getQueryParam('date') || '';
+            document.getElementById('view-authors').innerText = getQueryParam('authors') || '';
+            
+            // Foto logica (indien aanwezig)
+            const img = getQueryParam('image');
+            if(img && img !== "__IMAGEBASE64PLACEHOLDER__") {
+                document.getElementById('view-img1').src = img;
+                document.getElementById('view-img2').src = img;
+            }
+        };
+    </script>
+
+
+</body>
+</html>
