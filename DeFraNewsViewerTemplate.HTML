@@ -26,8 +26,11 @@
 
         /* Grid */
         .main-content { display: grid; grid-template-columns: 45% 55%; flex-grow: 1; overflow: hidden; }
-        .image-side { display: grid; grid-template-rows: 1fr 1fr; height: 100%; }
-        .image-container img { width: 100%; height: 100%; object-fit: cover; border: 5px solid var(--white); }
+        .image-side { display: grid; height: 100%; width: 100%; background-color: #eee; } /* Achtergrondkleur voor als er geen foto is */
+        
+        /* Toegevoegde container class */
+        .image-container { width: 100%; height: 100%; overflow: hidden; }
+        .image-container img { width: 100%; height: 100%; object-fit: cover; border: 5px solid var(--white); display: block; }
 
         /* Tekst */
         .text-side { background-color: var(--light-bg); padding: 60px 80px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
@@ -61,10 +64,8 @@
         </div>
 
         <main class="main-content">
-            <section class="image-side">
-                <div class="image-container"><img id="view-img1" src="" alt=""></div>
-                <div class="image-container"><img id="view-img2" src="" alt=""></div>
-            </section>
+            <section class="image-side" id="image-container-target">
+                </section>
 
             <article class="text-side">
                 <h2 class="sub-header" id="view-subtitle"></h2>
@@ -77,112 +78,25 @@
         </main>
     </div>
 
-    <!-- <script>
-        // Luister naar data van het moeder-bestand (de iframe wrapper)
-        window.addEventListener('message', function(event) {
-            const data = event.data;
-            if (data) {
-                document.getElementById('view-title').innerText = data.title || '';
-                document.getElementById('view-subtitle').innerText = data.subtitle || '';
-                document.getElementById('view-text').innerText = data.content || '';
-                document.getElementById('view-date').innerText = data.date || '';
-                document.getElementById('view-authors').innerText = data.authors || '';
-                
-                if(data.image) {
-                    document.getElementById('view-img1').src = data.image;
-                    document.getElementById('view-img2').src = data.image; // Gebruik zelfde foto voor beide vakken
-                }
-            }
-        });
-    </script> -->
-
-    <!-- <script>
-        // Functie om data uit de URL te vissen
-        function getQueryParam(param) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(param);
-        }
-    
-        window.onload = function() {
-            document.getElementById('view-title').innerText = getQueryParam('title') || 'Geen titel';
-            document.getElementById('view-subtitle').innerText = getQueryParam('subtitle') || '';
-            document.getElementById('view-text').innerText = getQueryParam('content') || '';
-            document.getElementById('view-date').innerText = getQueryParam('date') || '';
-            document.getElementById('view-authors').innerText = getQueryParam('authors') || '';
-            
-            const img = getQueryParam('image');
-            if(img && img !== "__IMAGEBASE64PLACEHOLDER__") {
-                document.getElementById('view-img1').src = img;
-                document.getElementById('view-img2').src = img;
-            }
-        };
-    </script> -->
-
-    <!-- <script>
-        function getQueryParam(param) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(param);
-        }
-    
-        window.onload = function() {
-            // We gebruiken decodeURIComponent om de gekke tekens uit de URL weer leesbaar te maken
-            document.getElementById('view-title').innerText = getQueryParam('title') || 'Geen titel';
-            document.getElementById('view-subtitle').innerText = getQueryParam('subtitle') || '';
-            document.getElementById('view-text').innerText = getQueryParam('content') || '';
-            document.getElementById('view-date').innerText = getQueryParam('date') || '';
-            document.getElementById('view-authors').innerText = getQueryParam('authors') || '';
-            
-            // Foto logica (indien aanwezig)
-            const img = getQueryParam('image');
-            if(img && img !== "__IMAGEBASE64PLACEHOLDER__") {
-                document.getElementById('view-img1').src = img;
-                document.getElementById('view-img2').src = img;
-            }
-        };
-    </script> -->
-
-    <!-- <script>
-        // 1. Meld aan de wrapper dat de template klaar is om data te ontvangen
-        window.onload = function() {
-            window.parent.postMessage('READY', '*');
-        };
-    
-        // 2. Luister naar de binnenkomende data
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data !== 'READY') {
-                const data = event.data;
-                
-                // Vul de velden in op basis van jouw HTML ID's
-                document.getElementById('view-title').innerText = data.title || '';
-                document.getElementById('view-subtitle').innerText = data.subtitle || '';
-                document.getElementById('view-text').innerText = data.content || '';
-                document.getElementById('view-date').innerText = data.date || '';
-                document.getElementById('view-authors').innerText = data.authors || '';
-                
-                // Foto logica
-                if(data.image && data.image !== "__IMAGEBASE64PLACEHOLDER__") {
-                    document.getElementById('view-img1').src = data.image;
-                    document.getElementById('view-img2').src = data.image;
-                }
-            }
-        });
-    </script> -->
-
     <script>
+        // 1. Handshake: Meld dat de ontvanger klaar is
         window.onload = function() {
             window.parent.postMessage('READY', '*');
         };
-    
+
+        // 2. Data verwerken
         window.addEventListener('message', function(event) {
             if (event.data && event.data !== 'READY') {
                 const data = event.data;
+                
+                // Tekst invullen
                 document.getElementById('view-title').innerText = data.title || '';
                 document.getElementById('view-subtitle').innerText = data.subtitle || '';
                 document.getElementById('view-text').innerText = data.content || '';
                 document.getElementById('view-date').innerText = data.date || '';
                 document.getElementById('view-authors').innerText = data.authors || '';
                 
-                const imgContainer = document.querySelector('.image-side');
+                const imgContainer = document.getElementById('image-container-target');
                 const photos = data.images || [];
                 
                 if (photos.length === 0) {
@@ -190,30 +104,27 @@
                 } else if (photos.length === 1) {
                     // Scenario A: 1 foto
                     imgContainer.style.display = "block";
-                    imgContainer.innerHTML = `<div class="image-container" style="height:100%"><img src="${photos[0]}" style="width:100%; height:100%; object-fit:cover;"></div>`;
+                    imgContainer.innerHTML = `<div class="image-container" style="height:100%"><img src="${photos[0]}"></div>`;
                 } else if (photos.length === 2) {
                     // Scenario B: 2 foto's onder elkaar
                     imgContainer.style.display = "grid";
                     imgContainer.style.gridTemplateRows = "1fr 1fr";
-                    imgContainer.innerHTML = photos.map(p => `<div class="image-container" style="height:100%"><img src="${p}" style="width:100%; height:100%; object-fit:cover;"></div>`).join('');
+                    imgContainer.innerHTML = photos.map(p => `<div class="image-container"><img src="${p}"></div>`).join('');
                 } else {
-                    // Scenario C: 3+ foto's -> Carrousel
+                    // Scenario C: 3 of 4 foto's -> Carrousel
                     imgContainer.style.display = "block";
                     let currentIndex = 0;
                     const updateImage = () => {
-                        imgContainer.innerHTML = `<div class="image-container" style="height:100%; transition: opacity 1s;"><img src="${photos[currentIndex]}" style="width:100%; height:100%; object-fit:cover;"></div>`;
+                        imgContainer.innerHTML = `<div class="image-container" style="height:100%"><img src="${photos[currentIndex]}" style="transition: opacity 0.5s;"></div>`;
                         currentIndex = (currentIndex + 1) % photos.length;
                     };
                     updateImage();
-                    setInterval(updateImage, 5000); // Wissel elke 5 seconden
+                    // We slaan het interval op om te voorkomen dat er meerdere gaan lopen
+                    if(window.navInterval) clearInterval(window.navInterval);
+                    window.navInterval = setInterval(updateImage, 5000); 
                 }
             }
         });
     </script>
-
-
-
 </body>
-
 </html>
-
