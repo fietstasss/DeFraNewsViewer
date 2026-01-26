@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: black; }
+        iframe { width: 100vw; height: 100vh; border: none; }
+    </style>
+</head>
+<body>
+    <iframe id="playlist-frame"></iframe>
+
+    <script>
+        // CONFIG: Hier zet je de links naar de SharePoint HTML-bestanden
+        // Tip: Je kunt Power Automate een JSON-lijstje laten bijwerken in deze map!
+        const playlist = [
+            "https://jouwtenant.sharepoint.com/.../DeFraNews_Bericht1.html",
+            "https://jouwtenant.sharepoint.com/.../DeFraNews_Bericht2.html",
+            "https://jouwtenant.sharepoint.com/.../DeFraNews_Bericht3.html"
+        ];
+
+        let currentIndex = 0;
+        const frame = document.getElementById('playlist-frame');
+
+        function nextItem() {
+            frame.src = playlist[currentIndex] + "?t=" + Date.now();
+            currentIndex = (currentIndex + 1) % playlist.length;
+        }
+
+        // Wissel elke 30 seconden (pas dit aan naar de gemiddelde leestijd)
+        setInterval(nextItem, 30000);
+        nextItem();
+    </script>
+</body>
+</html>
