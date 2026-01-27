@@ -6,73 +6,96 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; }
         iframe { border: none; width: 100vw; height: 100vh; }
+
+        #viewer { 
+            border: none; 
+            width: 100vw; 
+            height: 100vh; 
+            transition: opacity 0.8s ease-in-out; /* Dit zorgt voor de vloeiende overgang */
+            opacity: 1;
+        }
+        .fade-out { opacity: 0 !important; }
     </style>
 </head>
 <body>
     <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const playlistUrl = params.get('list');
-        const displayTime = 20000; // 20 seconden per bericht
-        
-        let articles = [];
-        let index = 0;
-        const viewer = document.getElementById('viewer');
+    const params = new URLSearchParams(window.location.search);
+    const playlistUrl = params.get('list');
+    const displayTime = 30000; // 30 seconden per bericht
+    
+    let articles = [];
+    let index = 0;
+    const viewer = document.getElementById('viewer');
 
-        async function loadPlaylist() {
-            try {
-                const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
-                const data = await res.json();
-                articles = data.articles.filter(a => {
-                    const now = new Date();
-                    return (!a.start || new Date(a.start) <= now) && (!a.end || new Date(a.end) >= now);
-                });
-                if (articles.length > 0) play();
-            } catch (e) { console.error("Fout bij laden playlist", e); }
+    async function loadPlaylist() {
+        try {
+            const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
+            const data = await res.json();
+            
+            const now = new Date();
+            now.setHours(0,0,0,0); // Reset tijd voor zuivere datumcheck
 
-            async function loadPlaylist() {
-                try {
-                    console.log("Bezig met laden playlist van:", playlistUrl);
-                    const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
-                    const data = await res.json();
-                    console.log("Data ontvangen:", data);
-                    
-                    articles = data.articles || [];
-                    console.log("Gefilterde artikelen:", articles);
-                    
-                    if (articles.length > 0) play();
-                    else console.warn("Geen geldige artikelen gevonden in JSON");
-                } catch (e) { 
-                    console.error("Playlist load error:", e); 
-                }
+            articles = (data.articles || []).filter(a => {
+                const start = a.start ? new Date(a.start) : null;
+                const end = a.end ? new Date(a.end) : null;
+                if (start) start.setHours(0,0,0,0);
+                if (end) end.setHours(23,59,59,999);
+
+                return (!start || start <= now) && (!end || end >= now);
+            });
+
+            if (articles.length > 0) {
+                play();
+            } else {
+                console.warn("Geen actieve artikelen voor vandaag.");
+                // Optioneel: herhaal de check over 10 minuten
+                setTimeout(loadPlaylist, 600000);
             }
+        } catch (e) { 
+            console.error("Fout bij laden playlist", e); 
         }
+    }
 
-        function play() {
-            const art = articles[index];
-            // We herladen de iframe om animaties te resetten
+    function play() {
+        if (articles.length === 0) return;
+        const art = articles[index];
+
+        // Stap 1: Fade out (scherm wordt zwart)
+        viewer.classList.add('fade-out');
+
+        setTimeout(() => {
+            // Stap 2: Nieuwe bron laden terwijl het scherm zwart is
             viewer.src = "DeFraNewsViewerTemplate.HTML?v=" + Date.now();
             
-            // Wacht tot de iframe "READY" stuurt, dan pas data sturen
             window.onmessage = (e) => {
                 if (e.data === 'READY') {
                     viewer.contentWindow.postMessage({
                         title: art.title,
-                        subtitle: art.subtitle || art.category, // Gebruikt subtitle als die er is
-                        content: art.content || art.message,   // Gebruikt content als die er is
+                        subtitle: art.subtitle || art.category,
+                        content: art.content || art.message,
                         date: art.start || '',
                         authors: art.authors || 'Redactie Dekkers-Fransen',
-                        images: art.images || (art.image ? [art.image] : []) // Pakt de hele lijst
+                        images: art.images || (art.image ? [art.image] : [])
                     }, '*');
+                    
+                    // Stap 3: Fade in (het nieuwe artikel verschijnt rustig)
+                    viewer.classList.remove('fade-out');
                 }
             };
+        }, 800); // Wacht tot de fade-out klaar is
 
-            index = (index + 1) % articles.length;
+        index = (index + 1) % articles.length;
+        
+        if (index === 0) {
+            setTimeout(loadPlaylist, displayTime);
+        } else {
             setTimeout(play, displayTime);
         }
+    }
 
-        if (playlistUrl) loadPlaylist();
-    </script>
+    if (playlistUrl) loadPlaylist();
+</script>
 </body>
 </html>
