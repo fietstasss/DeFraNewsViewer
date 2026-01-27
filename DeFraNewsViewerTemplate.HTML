@@ -408,6 +408,22 @@
           }, VIEWER_CONFIG.startDelay);
         }
       });
+
+      // --- EXTRA: URL PARAMETER ONDERSTEUNING VOOR HANDMATIG TESTEN ---
+const params = new URLSearchParams(window.location.search);
+if (params.has('title')) {
+    const manualData = {
+        title: params.get('title') || 'Geen Titel',
+        subtitle: params.get('category') || params.get('subtitle') || 'Nieuws',
+        content: params.get('message') || params.get('content') || '',
+        date: new Date().toLocaleDateString('nl-NL'),
+        authors: 'Redactie',
+        images: params.get('image') ? [params.get('image')] : []
+    };
+    
+    // We sturen de data naar onszelf toe alsof het van de Master Player komt
+    window.dispatchEvent(new MessageEvent('message', { data: manualData }));
+}
     </script>
   </body>
 </html>

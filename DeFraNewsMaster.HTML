@@ -1,24 +1,61 @@
-async function playNext() {
-            if (currentIndex === 0) await updatePlaylist();
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>DeFra News Master</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; }
+        iframe { border: none; width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
 
-            const now = new Date();
-            
-            // Filter the playlist: only show items where NOW is between start and end
-            // If no start/end is provided, it will show the item by default
-            const activeArticles = playlist.filter(item => {
-                const startDate = item.start ? new Date(item.start) : new Date(0);
-                const endDate = item.end ? new Date(item.end) : new Date(8640000000000000);
-                return now >= startDate && now <= endDate;
-            });
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const playlistUrl = params.get('list');
+        const displayTime = 30000; // 30 seconden per bericht
+        
+        let articles = [];
+        let index = 0;
+        const viewer = document.getElementById('viewer');
 
-            if (activeArticles.length > 0) {
-                const currentArticle = activeArticles[currentIndex % activeArticles.length];
-                const targetUrl = currentArticle.url;
-                
-                frame.src = targetUrl + (targetUrl.includes('?') ? '&' : '?') + "v=" + Date.now();
-                currentIndex = (currentIndex + 1) % activeArticles.length;
-            } else {
-                document.body.innerHTML = "<div style='color:white; font-family:sans-serif; padding:40px;'><h2>Geen actieve berichten</h2><p>Alle berichten zijn verlopen of nog niet gestart.</p></div>";
-                setTimeout(playNext, 10000); // Check again in 10 seconds
-            }
+        async function loadPlaylist() {
+            try {
+                const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
+                const data = await res.json();
+                articles = data.articles.filter(a => {
+                    const now = new Date();
+                    return (!a.start || new Date(a.start) <= now) && (!a.end || new Date(a.end) >= now);
+                });
+                if (articles.length > 0) play();
+            } catch (e) { console.error("Fout bij laden playlist", e); }
         }
+
+        function play() {
+            const art = articles[index];
+            // We herladen de iframe om animaties te resetten
+            viewer.src = "DeFraNewsViewerTemplate.HTML?v=" + Date.now();
+            
+            // Wacht tot de iframe "READY" stuurt, dan pas data sturen
+            window.onmessage = (e) => {
+                if (e.data === 'READY') {
+                    viewer.contentWindow.postMessage({
+                        title: art.title,
+                        subtitle: art.category,
+                        content: art.message,
+                        date: art.start || '',
+                        authors: 'Redactie Dekkers-Fransen',
+                        images: [art.image]
+                    }, '*');
+                }
+            };
+
+            index = (index + 1) % articles.length;
+            setTimeout(play, displayTime);
+        }
+
+        if (playlistUrl) loadPlaylist();
+    </script>
+</body>
+</html>
