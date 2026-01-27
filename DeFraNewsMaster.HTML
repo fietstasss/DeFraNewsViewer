@@ -30,6 +30,23 @@
                 });
                 if (articles.length > 0) play();
             } catch (e) { console.error("Fout bij laden playlist", e); }
+
+            async function loadPlaylist() {
+                try {
+                    console.log("Bezig met laden playlist van:", playlistUrl);
+                    const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
+                    const data = await res.json();
+                    console.log("Data ontvangen:", data);
+                    
+                    articles = data.articles || [];
+                    console.log("Gefilterde artikelen:", articles);
+                    
+                    if (articles.length > 0) play();
+                    else console.warn("Geen geldige artikelen gevonden in JSON");
+                } catch (e) { 
+                    console.error("Playlist load error:", e); 
+                }
+            }
         }
 
         function play() {
