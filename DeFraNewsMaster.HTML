@@ -15,10 +15,54 @@
             opacity: 1;
         }
         .fade-out { opacity: 0 !important; }
+
+        /* Container helemaal onderaan het scherm */
+        .bottom-progress-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px; /* Subtiele hoogte */
+            background: rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+        }
+
+        /* De bewegende oranje balk */
+        .bottom-progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #e67e22; /* DeFra Oranje */
+            box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+        }
+
+        /* De animatie-class */
+        .animate-bottom-progress {
+            animation: slideProgress linear forwards;
+        }
+
+        @keyframes slideProgress {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+
+        /* De Fade-overgang voor het hele iframe */
+        #viewer { 
+            border: none; 
+            width: 100vw; 
+            height: 100vh; 
+            transition: opacity 0.8s ease-in-out; 
+        }
+        .fade-out { opacity: 0 !important; }
     </style>
 </head>
 <body>
+    <!-- Progress bar -->
+    <div class="bottom-progress-container">
+        <div id="bottom-progress-bar" class="bottom-progress-bar"></div>
+    </div>
+
     <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
+
 
     <script>
     const params = new URLSearchParams(window.location.search);
@@ -47,11 +91,11 @@
             });
 
             if (articles.length > 0) {
-                play();
-            } else {
-                console.warn("Geen actieve artikelen voor vandaag.");
-                // Optioneel: herhaal de check over 10 minuten
-                setTimeout(loadPlaylist, 600000);
+                // Alleen play() starten als er nog geen timer loopt
+                if (index === 0 && !window.timerStarted) {
+                    window.timerStarted = true;
+                    play();
+                }
             }
         } catch (e) { 
             console.error("Fout bij laden playlist", e); 
@@ -61,12 +105,27 @@
     function play() {
         if (articles.length === 0) return;
         const art = articles[index];
+        const progressBar = document.getElementById('bottom-progress');
 
-        // Stap 1: Fade out (scherm wordt zwart)
+        // --- OPVANGER VOOR SLECHTS 1 ARTIKEL ---
+        if (articles.length === 1) {
+            // Reset alleen de balk voor de visuele timer
+            progressBar.classList.remove('animate-progress');
+            void progressBar.offsetWidth; 
+            progressBar.style.animationDuration = (displayTime / 1000) + 's';
+            progressBar.classList.add('animate-progress');
+
+            // Check na 30 seconden alleen of er intussen nieuwe artikelen zijn
+            setTimeout(loadPlaylist, displayTime);
+            return; // Stop hier, we gaan niet faden of herladen
+        }
+
+        // --- LOGICA VOOR MEERDERE ARTIKELEN (FADE & WISSEL) ---
         viewer.classList.add('fade-out');
+        progressBar.classList.remove('animate-progress');
+        void progressBar.offsetWidth;
 
         setTimeout(() => {
-            // Stap 2: Nieuwe bron laden terwijl het scherm zwart is
             viewer.src = "DeFraNewsViewerTemplate.HTML?v=" + Date.now();
             
             window.onmessage = (e) => {
@@ -80,11 +139,12 @@
                         images: art.images || (art.image ? [art.image] : [])
                     }, '*');
                     
-                    // Stap 3: Fade in (het nieuwe artikel verschijnt rustig)
                     viewer.classList.remove('fade-out');
+                    progressBar.style.animationDuration = (displayTime / 1000) + 's';
+                    progressBar.classList.add('animate-progress');
                 }
             };
-        }, 800); // Wacht tot de fade-out klaar is
+        }, 800);
 
         index = (index + 1) % articles.length;
         
