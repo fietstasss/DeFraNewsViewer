@@ -300,7 +300,9 @@
           // 1. FILL TEXT DATA
           document.getElementById('view-title').innerText = data.title || '';
           document.getElementById('view-subtitle').innerText = data.subtitle || '';
-          document.getElementById('view-text').innerHTML = (data.content || '').replace(/\n/g, '<br>');
+          // document.getElementById('view-text').innerHTML = (data.content || '').replace(/\n/g, '<br>');
+          const formattedContent = (data.content || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+          document.getElementById('view-text').innerHTML = formattedContent;
           document.getElementById('view-date').innerText = data.date || '';
           document.getElementById('view-authors').innerText = data.authors || '';
           // 2. SMART SCROLL LOGIC & PROGRESS BAR
