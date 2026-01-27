@@ -59,11 +59,11 @@
                 if (e.data === 'READY') {
                     viewer.contentWindow.postMessage({
                         title: art.title,
-                        subtitle: art.category,
-                        content: art.message,
+                        subtitle: art.subtitle || art.category, // Gebruikt subtitle als die er is
+                        content: art.content || art.message,   // Gebruikt content als die er is
                         date: art.start || '',
-                        authors: 'Redactie Dekkers-Fransen',
-                        images: [art.image]
+                        authors: art.authors || 'Redactie Dekkers-Fransen',
+                        images: art.images || (art.image ? [art.image] : []) // Pakt de hele lijst
                     }, '*');
                 }
             };
