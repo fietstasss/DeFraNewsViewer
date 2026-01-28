@@ -7,7 +7,6 @@
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
             overflow: hidden; 
-            /* Achtergrondkleur aangepast naar ViewerTemplate grijs/wit */
             background: #fcfcfc; 
         }
 
@@ -16,17 +15,17 @@
             width: 100vw;
             height: 100vh;
             background-color: transparent;
+
             /* Cubic-bezier zorgt voor een 'zachte landing' van het artikel */
             transition: transform var(--fade-speed, 0.8s) cubic-bezier(0.23, 1, 0.32, 1), 
                         opacity var(--fade-speed, 0.8s) ease-in-out;
             transform: translateX(0);
         }
 
-        /* Zet het nieuwe artikel klaar buiten het scherm (rechts) */
         .slide-prepare {
             transition: none !important;
             transform: translateX(100%) !important;
-            opacity: 0; /* Verberg het iframe terwijl de content herlaadt */
+            opacity: 0;
         }
 
         #article-nav {
@@ -75,7 +74,7 @@
     <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
 
     <script>
-        // --- MASTER CONFIGURATIE (DE KNOPPEN) ---
+        // --- MASTER CONFIGURATIE ---
         const MASTER_CONFIG = {
             displayTime: 25000,
             fadeSpeed: 2.8,
@@ -95,7 +94,7 @@
         let timerStarted = false;
         const viewer = document.getElementById('viewer');
 
-        // Initialiseer CSS variabelen op basis van MASTER_CONFIG
+        //  Initialize CSS variables based on MASTER_CONFIG
         document.documentElement.style.setProperty('--fade-speed', MASTER_CONFIG.fadeSpeed + 's');
         document.documentElement.style.setProperty('--pill-width', MASTER_CONFIG.pillWidth);
         document.documentElement.style.setProperty('--pill-bg-color', MASTER_CONFIG.pillBackgroundColor);
@@ -104,41 +103,78 @@
 
         async function loadPlaylist() {
             if (!playlistUrl) return;
+            
             try {
+                console.log("--- START PLAYLIST CHECK ---");
                 const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
                 const data = await res.json();
-                const now = new Date();
-                now.setHours(0,0,0,0);
+                
+                const nu = new Date();
+                console.log("Huidige lokale tijd:", nu.toLocaleString());
 
-                articles = (data.articles || []).filter(a => {
-                    const start = a.start ? new Date(a.start) : null;
-                    const end = a.end ? new Date(a.end) : null;
-                    if (start) start.setHours(0,0,0,0);
-                    if (end) end.setHours(23,59,59,999);
-                    return (!start || start <= now) && (!end || end >= now);
+                const rawArticles = data.articles || [];
+
+                articles = rawArticles.filter(a => {
+                    // Browser interpreteert '2026-01-28T13:22:00' nu correct als lokale tijd
+                    const start = a.start ? new Date(a.start) : new Date(0);
+                    const end = a.end ? new Date(a.end) : new Date(8640000000000000);
+                    
+                    const isGeldig = nu >= start && nu <= end;
+                    
+                    console.log(`[${isGeldig ? 'LIVE' : 'SKIP'}] ${a.title}`);
+                    if (nu < start) console.log(`   -> Start pas om: ${start.toLocaleString()}`);
+                    if (nu > end) console.log(`   -> Verlopen op: ${end.toLocaleString()}`);
+
+                    return isGeldig;
+
+                    
                 });
+
+                articles.sort((a, b) => {
+                    const dateA = new Date(a.start || 0);
+                    const dateB = new Date(b.start || 0);
+                    return dateB - dateA; 
+                });
+
+                console.log("Aantal artikelen live:", articles.length);
+                console.log("--- EINDE PLAYLIST CHECK ---");
 
                 if (articles.length > 0) {
                     renderArticleNav();
                     if (!window.timerStarted) {
                         window.timerStarted = true;
+                        index = 0;
                         play();
                     }
+                } else {
+                    showFallback();
                 }
             } catch (e) {
-                console.error("Fout bij laden playlist", e);
+                console.error("Fout bij laden playlist:", e);
+            }
+        }
+
+        function showFallback() {
+            articles = [{
+                title: "DEFRANEWS MASTER",
+                subtitle: "STATUS: ONLINE",
+                content: "Er zijn momenteel geen actuele nieuwsberichten.\n\nControleer de data in SharePoint.",
+                images: [] 
+            }];
+            renderArticleNav();
+            document.getElementById('article-nav').innerHTML = '<p style="color:#e67e22; font-family:sans-serif; font-size:14px; font-weight:bold;">GEEN ACTUELE BERICHTEN</p>';
+            if (!window.timerStarted) {
+                window.timerStarted = true;
+                index = 0;
+                play();
             }
         }
 
         function play() {
-            if (articles.length === 0) {
-                window.timerStarted = false;
-                return;
-            }
+            if (articles.length === 0) return;
             
             const art = articles[index];
 
-            // Update de pill-navigatie onderin
             document.querySelectorAll('.article-dot').forEach((dot, i) => {
                 dot.classList.remove('active');
                 dot.classList.toggle('completed', i < index);
@@ -153,11 +189,7 @@
                 isFirstRun = false;
                 updateViewerContent(art);
             } else {
-                // Zet het iframe direct rechts buiten beeld (met opacity 0 voor laden)
                 viewer.classList.add('slide-prepare');
-                
-                // Terwijl het iframe rechts buiten beeld 'onzichtbaar' herlaadt, 
-                // blijft de achtergrondkleur van de body zichtbaar.
                 updateViewerContent(art);
             }
 
@@ -178,16 +210,14 @@
                 if (e.data === 'READY') {
                     viewer.contentWindow.postMessage({
                         title: art.title,
-                        subtitle: art.subtitle || art.category,
-                        content: art.content || art.message,
+                        subtitle: art.subtitle, // Nu direct gemapt op JSON key
+                        content: art.content,   // Nu direct gemapt op JSON key
                         date: art.start || '',
                         authors: art.authors || 'Redactie Dekkers-Fransen',
-                        images: art.images || (art.image ? [art.image] : []),
-                        displayTime: MASTER_CONFIG.displayTime  //Required for the TemplateViewer to split up the images according to the artibleslide time.
-                        
+                        images: art.images || [],
+                        displayTime: MASTER_CONFIG.displayTime
                     }, '*');
                     
-                    // Zodra de template READY zegt, maken we hem zichtbaar en schuiven we hem in
                     setTimeout(() => {
                         viewer.style.opacity = "1";
                         viewer.classList.remove('slide-prepare');
