@@ -1,131 +1,177 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>DeFra News Master</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; }
-        iframe { border: none; width: 100vw; height: 100vh; }
-
-        #viewer { 
-            border: none; 
-            width: 100vw; 
-            height: 100vh; 
-            transition: opacity 0.8s ease-in-out; /* Dit zorgt voor de vloeiende overgang */
-            opacity: 1;
+        body, html { 
+            margin: 0; padding: 0; height: 100%; width: 100%; 
+            overflow: hidden; 
+            /* Achtergrondkleur aangepast naar ViewerTemplate grijs/wit */
+            background: #fcfcfc; 
         }
-        .fade-out { opacity: 0 !important; }
 
-        /* Container helemaal onderaan het scherm */
-        .bottom-progress-container {
+        #viewer {
+            border: none;
+            width: 100vw;
+            height: 100vh;
+            background-color: transparent;
+            /* Cubic-bezier zorgt voor een 'zachte landing' van het artikel */
+            transition: transform var(--fade-speed, 0.8s) cubic-bezier(0.23, 1, 0.32, 1), 
+                        opacity var(--fade-speed, 0.8s) ease-in-out;
+            transform: translateX(0);
+        }
+
+        /* Zet het nieuwe artikel klaar buiten het scherm (rechts) */
+        .slide-prepare {
+            transition: none !important;
+            transform: translateX(100%) !important;
+            opacity: 0; /* Verberg het iframe terwijl de content herlaadt */
+        }
+
+        #article-nav {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 4px; /* Subtiele hoogte */
-            background: rgba(0, 0, 0, 0.2);
-            z-index: 9999;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 10000;
         }
 
-        /* De bewegende oranje balk */
-        .bottom-progress-bar {
-            width: 0%;
-            height: 100%;
-            background: #e67e22; /* DeFra Oranje */
-            box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+        .article-dot {
+            width: var(--pill-width, 60px);
+            height: 8px;
+            background: var(--pill-bg-color, rgba(230, 125, 34, 0.36));
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            transition: background 0.4s ease;
         }
 
-        /* De animatie-class */
-        .animate-bottom-progress {
-            animation: slideProgress linear forwards;
+        .article-dot.active::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; height: 100%; width: 0%;
+            background: var(--pill-active-color, #e67e22);
+            animation: articleProgress linear forwards;
+            animation-duration: var(--duration, 30s);
         }
 
-        @keyframes slideProgress {
+        @keyframes articleProgress {
             from { width: 0%; }
             to { width: 100%; }
         }
 
-        /* De Fade-overgang voor het hele iframe */
-        #viewer { 
-            border: none; 
-            width: 100vw; 
-            height: 100vh; 
-            transition: opacity 0.8s ease-in-out; 
+        .article-dot.completed {
+            background: var(--pill-completed-color, #e67e22);
+            opacity: 1;
         }
-        .fade-out { opacity: 0 !important; }
     </style>
 </head>
-<body>
-    <!-- Progress bar -->
-    <div class="bottom-progress-container">
-        <div id="bottom-progress-bar" class="bottom-progress-bar"></div>
-    </div>
 
+<body>
+    <div id="article-nav"></div>
     <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
 
-
     <script>
-    const params = new URLSearchParams(window.location.search);
-    const playlistUrl = params.get('list');
-    const displayTime = 30000; // 30 seconden per bericht
-    
-    let articles = [];
-    let index = 0;
-    const viewer = document.getElementById('viewer');
+        // --- MASTER CONFIGURATIE (DE KNOPPEN) ---
+        const MASTER_CONFIG = {
+            displayTime: 25000,
+            fadeSpeed: 2.8,
+            transitionType: "slide", 
+            pillWidth: "60px",
+            pillActiveColor: "#e67e22",
+            pillCompletedColor: "#e67e22",
+            pillBackgroundColor: "#e67d225c"
+        };
 
-    async function loadPlaylist() {
-        try {
-            const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
-            const data = await res.json();
+        const params = new URLSearchParams(window.location.search);
+        const playlistUrl = params.get('list');
+
+        let articles = [];
+        let index = 0;
+        let isFirstRun = true;
+        let timerStarted = false;
+        const viewer = document.getElementById('viewer');
+
+        // Initialiseer CSS variabelen op basis van MASTER_CONFIG
+        document.documentElement.style.setProperty('--fade-speed', MASTER_CONFIG.fadeSpeed + 's');
+        document.documentElement.style.setProperty('--pill-width', MASTER_CONFIG.pillWidth);
+        document.documentElement.style.setProperty('--pill-bg-color', MASTER_CONFIG.pillBackgroundColor);
+        document.documentElement.style.setProperty('--pill-active-color', MASTER_CONFIG.pillActiveColor);
+        document.documentElement.style.setProperty('--pill-completed-color', MASTER_CONFIG.pillCompletedColor);
+
+        async function loadPlaylist() {
+            if (!playlistUrl) return;
+            try {
+                const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
+                const data = await res.json();
+                const now = new Date();
+                now.setHours(0,0,0,0);
+
+                articles = (data.articles || []).filter(a => {
+                    const start = a.start ? new Date(a.start) : null;
+                    const end = a.end ? new Date(a.end) : null;
+                    if (start) start.setHours(0,0,0,0);
+                    if (end) end.setHours(23,59,59,999);
+                    return (!start || start <= now) && (!end || end >= now);
+                });
+
+                if (articles.length > 0) {
+                    renderArticleNav();
+                    if (!window.timerStarted) {
+                        window.timerStarted = true;
+                        play();
+                    }
+                }
+            } catch (e) {
+                console.error("Fout bij laden playlist", e);
+            }
+        }
+
+        function play() {
+            if (articles.length === 0) {
+                window.timerStarted = false;
+                return;
+            }
             
-            const now = new Date();
-            now.setHours(0,0,0,0); // Reset tijd voor zuivere datumcheck
+            const art = articles[index];
 
-            articles = (data.articles || []).filter(a => {
-                const start = a.start ? new Date(a.start) : null;
-                const end = a.end ? new Date(a.end) : null;
-                if (start) start.setHours(0,0,0,0);
-                if (end) end.setHours(23,59,59,999);
-
-                return (!start || start <= now) && (!end || end >= now);
+            // Update de pill-navigatie onderin
+            document.querySelectorAll('.article-dot').forEach((dot, i) => {
+                dot.classList.remove('active');
+                dot.classList.toggle('completed', i < index);
+                if (i === index) {
+                    void dot.offsetWidth; 
+                    dot.style.setProperty('--duration', (MASTER_CONFIG.displayTime / 1000) + 's');
+                    dot.classList.add('active');
+                }
             });
 
-            if (articles.length > 0) {
-                // Alleen play() starten als er nog geen timer loopt
-                if (index === 0 && !window.timerStarted) {
-                    window.timerStarted = true;
-                    play();
-                }
+            if (isFirstRun) {
+                isFirstRun = false;
+                updateViewerContent(art);
+            } else {
+                // Zet het iframe direct rechts buiten beeld (met opacity 0 voor laden)
+                viewer.classList.add('slide-prepare');
+                
+                // Terwijl het iframe rechts buiten beeld 'onzichtbaar' herlaadt, 
+                // blijft de achtergrondkleur van de body zichtbaar.
+                updateViewerContent(art);
             }
-        } catch (e) { 
-            console.error("Fout bij laden playlist", e); 
-        }
-    }
 
-    function play() {
-        if (articles.length === 0) return;
-        const art = articles[index];
-        const progressBar = document.getElementById('bottom-progress');
+            index = (index + 1) % articles.length;
 
-        // --- OPVANGER VOOR SLECHTS 1 ARTIKEL ---
-        if (articles.length === 1) {
-            // Reset alleen de balk voor de visuele timer
-            progressBar.classList.remove('animate-progress');
-            void progressBar.offsetWidth; 
-            progressBar.style.animationDuration = (displayTime / 1000) + 's';
-            progressBar.classList.add('animate-progress');
-
-            // Check na 30 seconden alleen of er intussen nieuwe artikelen zijn
-            setTimeout(loadPlaylist, displayTime);
-            return; // Stop hier, we gaan niet faden of herladen
+            if (index === 0) {
+                window.timerStarted = false; 
+                setTimeout(loadPlaylist, MASTER_CONFIG.displayTime);
+            } else {
+                setTimeout(play, MASTER_CONFIG.displayTime);
+            }
         }
 
-        // --- LOGICA VOOR MEERDERE ARTIKELEN (FADE & WISSEL) ---
-        viewer.classList.add('fade-out');
-        progressBar.classList.remove('animate-progress');
-        void progressBar.offsetWidth;
-
-        setTimeout(() => {
+        function updateViewerContent(art) {
             viewer.src = "DeFraNewsViewerTemplate.HTML?v=" + Date.now();
             
             window.onmessage = (e) => {
@@ -136,26 +182,32 @@
                         content: art.content || art.message,
                         date: art.start || '',
                         authors: art.authors || 'Redactie Dekkers-Fransen',
-                        images: art.images || (art.image ? [art.image] : [])
+                        images: art.images || (art.image ? [art.image] : []),
+                        displayTime: MASTER_CONFIG.displayTime  //Required for the TemplateViewer to split up the images according to the artibleslide time.
+                        
                     }, '*');
                     
-                    viewer.classList.remove('fade-out');
-                    progressBar.style.animationDuration = (displayTime / 1000) + 's';
-                    progressBar.classList.add('animate-progress');
+                    // Zodra de template READY zegt, maken we hem zichtbaar en schuiven we hem in
+                    setTimeout(() => {
+                        viewer.style.opacity = "1";
+                        viewer.classList.remove('slide-prepare');
+                    }, 100); 
                 }
             };
-        }, 800);
-
-        index = (index + 1) % articles.length;
-        
-        if (index === 0) {
-            setTimeout(loadPlaylist, displayTime);
-        } else {
-            setTimeout(play, displayTime);
         }
-    }
 
-    if (playlistUrl) loadPlaylist();
-</script>
+        function renderArticleNav() {
+            const nav = document.getElementById('article-nav');
+            nav.innerHTML = '';
+            articles.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.className = 'article-dot';
+                dot.id = 'dot-' + i;
+                nav.appendChild(dot);
+            });
+        }
+
+        if (playlistUrl) loadPlaylist();
+    </script>
 </body>
 </html>

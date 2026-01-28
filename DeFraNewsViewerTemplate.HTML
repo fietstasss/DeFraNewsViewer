@@ -9,16 +9,27 @@
        * Dashboard for all visual and logic settings
        */
       const VIEWER_CONFIG = {
-        // --- TEXT SCROLL SETTINGS ---
-        pixelsPerSecond: 10, // Scrolling speed
-        pauseAtStart: 4000, // Delay at the top (ms)
-        pauseAtEnd: 5000, // Delay at the bottom (ms)
-        showTextProgress: true, // Show/hide the vertical progress bar for text
-        // --- PHOTO SETTINGS ---
-        photoDisplayTime: 6000, // Duration per photo (ms)
-        startDelay: 800, // Delay before first photo pop-in (ms)
-        staggerDelay: 400, // Delay between first and second photo in grid (ms)
-        useAnimations: true // Enable/disable fade-in effects
+        // --- TEXT SCROLL SETTINGS (NU DYNAMISCH) ---
+        // pixelsPerSecond wordt nu genegeerd ten gunste van de Master-tijd
+        pauseAtStart: 4000,        // Delay at the top (ms)
+        pauseAtEnd: 5000,          // Delay at the bottom (ms)
+        showTextProgress: true,    // Show/hide the vertical progress bar for text
+        
+        // --- TYPOGRAPHY & SPACING ---
+        fontSizeText: "2.0rem",    // Grootte van de hoofdtekst
+        fontSizeSubtitle: "4.6rem",// Grootte van de oranje titel
+        contentPadding: "10px 60px",// Witruimte rondom de tekst
+        
+        // --- PHOTO SETTINGS (DYNAMISCH) ---
+        startDelay: 1000,          // Delay before first photo pop-in (ms)
+        staggerDelay: 600,         // Delay between first and second photo in grid (ms)
+        
+        // --- VISUAL EFFECTS (THE DIALS) ---
+        fadeSpeed: 1.5,            // Speed of the photo cross-fade (seconds)
+        zoomScale: 1.05,           // How much the photo zooms in (1.05 = 5%)
+        zoomDuration: 15,          // Time for a full zoom-cycle (seconds)
+        photoShadow: 0.15,         // Shadow intensity (0 to 1)
+        useAnimations: true        // Enable/disable fade-in effects
       };
     </script>
     <style>
@@ -30,7 +41,6 @@
         --white: #ffffff;
         --light-bg: #fcfcfc;
         --photo-bg: #f0f0f0;
-        --fade-speed: 0.8s;
       }
 
       /* --- BASE LAYOUT --- */
@@ -84,7 +94,8 @@
 
       /* Meta Data Bar */
       .info-bar {
-        background-color: var(--primary-blue);
+        background: linear-gradient(90deg, var(--primary-blue), #2c5e91);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         color: white;
         padding: 0 50px;
         height: 50px;
@@ -107,53 +118,42 @@
       /* --- IMAGE SECTION (Left) --- */
       .image-side {
         position: relative;
-        display: grid;
+        display: block;
         height: 100%;
         width: 100%;
         background-color: var(--photo-bg);
         overflow: hidden;
       }
 
-      .image-container {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .image-container img {
+      .image-item {
+        position: absolute;
         width: 100%;
         height: 100%;
         object-fit: contain;
-        display: block;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        transition: opacity var(--computed-fade-speed) ease-in-out; 
         opacity: 0;
+        display: block;
+        box-shadow: 0 0 25px rgba(0, 0, 0, var(--computed-shadow));
       }
 
-      .fade-in {
-        animation: fadeIn var(--fade-speed) forwards;
+      .image-item.active {
+        opacity: 1;
+        animation: slowZoom var(--computed-zoom-duration) ease-in-out forwards;
       }
 
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: scale(0.98);
-        }
+      .image-exit {
+        opacity: 0 !important;
+      }
 
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
+      @keyframes slowZoom {
+          0% { transform: scale(1.0); }
+          100% { transform: scale(var(--computed-zoom-scale)); }
       }
 
       /* --- TEXT SECTION (Right) --- */
       .text-side {
         background-color: var(--light-bg);
-        padding: 60px 80px;
+        padding: var(--computed-padding);
         display: flex;
         flex-direction: column;
         position: relative;
@@ -161,30 +161,36 @@
       }
 
       .sub-header {
-        font-size: 2.8rem;
+        font-size: var(--computed-subtitle-size);
         color: var(--accent-orange);
         font-weight: 800;
-        margin-bottom: 30px;
-        line-height: 1.2;
+        margin-bottom: 20px;
+        line-height: 1.1;
         flex-shrink: 0;
         z-index: 10;
+        background: transparent;
+        position: relative;
       }
 
       .scroll-window {
         flex-grow: 1;
         overflow: hidden;
         position: relative;
+        margin-top: 0;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40px);
+        mask-image: linear-gradient(to bottom, transparent 0%, black 40px);
       }
 
       .scroll-container {
         display: flex;
         flex-direction: column;
         width: 100%;
+        padding-top: 10px;
       }
 
       .text-content {
-        font-size: 1.6rem;
-        line-height: 1.8;
+        font-size: var(--computed-text-size);
+        line-height: 1.7;
         color: var(--text-dark);
         white-space: pre-wrap;
       }
@@ -204,7 +210,6 @@
         border-radius: 2px;
         overflow: hidden;
         display: none;
-        /* Hidden by default, JS enables it if needed */
       }
 
       .text-progress-bar {
@@ -221,17 +226,18 @@
         left: 50%;
         transform: translateX(-50%);
         display: flex;
-        gap: 8px;
         z-index: 20;
-        background: rgba(0, 0, 0, 0.2);
-        padding: 6px 12px;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 8px 16px;
         border-radius: 20px;
-        backdrop-filter: blur(4px);
+        gap: 10px;
       }
 
       .indicator-segment {
-        width: 30px;
-        height: 4px;
+        width: 35px;
+        height: 3px;
         background: rgba(255, 255, 255, 0.3);
         border-radius: 2px;
         overflow: hidden;
@@ -249,20 +255,15 @@
       }
 
       @keyframes progressFill {
-        from {
-          width: 0%;
-        }
-
-        to {
-          width: 100%;
-        }
+        from { width: 0%; }
+        to { width: 100%; }
       }
     </style>
   </head>
   <body>
     <div class="fullscreen-wrapper">
       <header class="header">
-        <div class="logo">DEFRA NEWS V5</div>
+        <div class="logo">DEFRA NEWS V6</div>
         <div class="main-title" id="view-title">Loading...</div>
       </header>
       <div class="info-bar">
@@ -285,27 +286,31 @@
       </main>
     </div>
     <script>
-      /**
-       * Initial handshake with parent frame
-       */
+      // Inject CSS variables from Config
+      document.documentElement.style.setProperty('--computed-fade-speed', VIEWER_CONFIG.fadeSpeed + 's');
+      document.documentElement.style.setProperty('--computed-zoom-duration', VIEWER_CONFIG.zoomDuration + 's');
+      document.documentElement.style.setProperty('--computed-zoom-scale', VIEWER_CONFIG.zoomScale);
+      document.documentElement.style.setProperty('--computed-shadow', VIEWER_CONFIG.photoShadow);
+      document.documentElement.style.setProperty('--computed-text-size', VIEWER_CONFIG.fontSizeText);
+      document.documentElement.style.setProperty('--computed-subtitle-size', VIEWER_CONFIG.fontSizeSubtitle);
+      document.documentElement.style.setProperty('--computed-padding', VIEWER_CONFIG.contentPadding);
+
       window.onload = function() {
         window.parent.postMessage('READY', '*');
       };
-      /**
-       * Data Receiver and UI Generator
-       */
+
       window.addEventListener('message', function(event) {
         if (event.data && event.data !== 'READY') {
           const data = event.data;
-          // 1. FILL TEXT DATA
+          
           document.getElementById('view-title').innerText = data.title || '';
           document.getElementById('view-subtitle').innerText = data.subtitle || '';
-          // document.getElementById('view-text').innerHTML = (data.content || '').replace(/\n/g, '<br>');
           const formattedContent = (data.content || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
           document.getElementById('view-text').innerHTML = formattedContent;
           document.getElementById('view-date').innerText = data.date || '';
           document.getElementById('view-authors').innerText = data.authors || '';
-          // 2. SMART SCROLL LOGIC & PROGRESS BAR
+
+          // 2. SMART SCROLL LOGIC (NU VOLLEDIG SYNCHROON MET MASTER)
           setTimeout(() => {
             const scrollContainer = document.getElementById('scroll-target');
             const scrollWindow = document.querySelector('.scroll-window');
@@ -313,15 +318,20 @@
             const progressTrack = document.getElementById('text-track');
             const textHeight = scrollContainer.scrollHeight;
             const windowHeight = scrollWindow.offsetHeight;
+
+            // Totale tijd van de Master (bijv. 30000ms)
+            const masterTotalTime = data.displayTime || 30000;
+
             if (textHeight > windowHeight) {
               const distance = textHeight - windowHeight + 40;
-              const scrollDurationMs = (distance / VIEWER_CONFIG.pixelsPerSecond) * 1000;
-              const totalDurationMs = scrollDurationMs + VIEWER_CONFIG.pauseAtStart + VIEWER_CONFIG.pauseAtEnd;
-              // Calculation for animation percentages
+              
+              // We gebruiken de Master tijd als basis voor de totale animatie
+              const totalDurationMs = masterTotalTime;
               const startPausePercent = (VIEWER_CONFIG.pauseAtStart / totalDurationMs) * 100;
               const endPausePercent = 100 - ((VIEWER_CONFIG.pauseAtEnd / totalDurationMs) * 100);
+              
               if (VIEWER_CONFIG.showTextProgress) progressTrack.style.display = 'block';
-              // Inject Dynamic Keyframes for both text scroll and progress bar
+
               const styleId = 'dynamic-animations';
               let styleTag = document.getElementById(styleId);
               if (!styleTag) {
@@ -330,102 +340,94 @@
                 document.head.appendChild(styleTag);
               }
               styleTag.innerHTML = `
-                        @keyframes dynamicAutoScroll {
-                            0% { transform: translateY(0); }
-                            ${startPausePercent}% { transform: translateY(0); }
-                            ${endPausePercent}% { transform: translateY(-${distance}px); }
-                            100% { transform: translateY(-${distance}px); }
-                        }
-                        @keyframes dynamicProgressHeight {
-                            0% { height: 0%; }
-                            ${startPausePercent}% { height: 0%; }
-                            ${endPausePercent}% { height: 100%; }
-                            100% { height: 100%; }
-                        }
-                        #scroll-target { animation: dynamicAutoScroll ${totalDurationMs / 1000}s linear infinite; }
-                        #text-progress-bar { animation: dynamicProgressHeight ${totalDurationMs / 1000}s linear infinite; }
-                    `;
+                @keyframes dynamicAutoScroll {
+                    0% { transform: translateY(0); }
+                    ${startPausePercent}% { transform: translateY(0); }
+                    ${endPausePercent}% { transform: translateY(-${distance}px); }
+                    100% { transform: translateY(-${distance}px); }
+                }
+                @keyframes dynamicProgressHeight {
+                    0% { height: 0%; }
+                    ${startPausePercent}% { height: 0%; }
+                    ${endPausePercent}% { height: 100%; }
+                    100% { height: 100%; }
+                }
+                #scroll-target { animation: dynamicAutoScroll ${totalDurationMs / 1000}s linear infinite; }
+                #text-progress-bar { animation: dynamicProgressHeight ${totalDurationMs / 1000}s linear infinite; }
+              `;
             } else {
               scrollContainer.style.animation = "none";
               progressTrack.style.display = 'none';
             }
           }, 200);
+
           // 3. PHOTO DISPLAY & CAROUSEL LOGIC
           const container = document.getElementById('image-display-area');
           const photos = data.images || [];
           if (window.photoInterval) clearInterval(window.photoInterval);
-          // Create image element helper
-          const renderPhoto = (src, delay = 0) => {
-            const div = document.createElement('div');
-            div.className = `image-container`;
-            div.style.height = "100%";
-            div.innerHTML = `
-					<img src="${src}" class="${VIEWER_CONFIG.useAnimations ? 'fade-in' : ''}" style="animation-delay: ${delay}ms">`;
-            return div;
-          };
-          // Delayed pop-in for visual appeal
+
           setTimeout(() => {
             container.innerHTML = '';
             if (photos.length === 0) {
-              container.innerHTML = ' < div style = "background:var(--photo-bg); height:100%;" > < /div>';
-            } else if (photos.length === 1) {
-              container.style.display = "block";
-              container.appendChild(renderPhoto(photos[0], 0));
-            } else if (photos.length === 2) {
-              container.style.display = "grid";
-              container.style.gridTemplateRows = "1fr 1fr";
-              container.appendChild(renderPhoto(photos[0], 0));
-              container.appendChild(renderPhoto(photos[1], VIEWER_CONFIG.staggerDelay));
-            } else {
-              container.style.display = "block";
-              let idx = 0;
-              const updateIndicators = (currentIdx) => {
-                const existing = container.querySelector('.photo-indicators');
-                if (existing) existing.remove();
-                const nav = document.createElement('div');
-                nav.className = 'photo-indicators';
-                photos.forEach((_, i) => {
-                  const seg = document.createElement('div');
-                  seg.className = 'indicator-segment';
-                  if (i === currentIdx) {
-                    seg.classList.add('active');
-                    seg.style.setProperty('--photo-time', `${VIEWER_CONFIG.photoDisplayTime}ms`);
-                  } else if (i < currentIdx) {
-                    seg.style.background = 'rgba(255,255,255,0.8)';
+              container.innerHTML = '<div style="background:var(--photo-bg); height:100%;"></div>';
+              return;
+            }
+
+            let idx = 0;
+            const masterDisplayTime = data.displayTime || 30000;
+            const dynamicPhotoTime = masterDisplayTime / photos.length;
+
+            const updateIndicators = (currentIdx) => {
+              const existing = container.querySelector('.photo-indicators');
+              if (existing) existing.remove();
+              if (photos.length <= 1) return;
+
+              const nav = document.createElement('div');
+              nav.className = 'photo-indicators';
+              photos.forEach((_, i) => {
+                const seg = document.createElement('div');
+                seg.className = 'indicator-segment';
+                if (i === currentIdx) {
+                  seg.classList.add('active');
+                  seg.style.setProperty('--photo-time', `${dynamicPhotoTime}ms`);
+                } else if (i < currentIdx) {
+                  seg.style.background = 'rgba(255,255,255,0.8)';
+                }
+                nav.appendChild(seg);
+              });
+              container.appendChild(nav);
+            };
+
+            const rotate = () => {
+              const oldImg = container.querySelector('.image-item:not(.image-exit)');
+              const nextPhoto = photos[idx];
+              const newImg = document.createElement('img');
+              newImg.src = nextPhoto;
+              newImg.className = 'image-item';
+              newImg.style.zIndex = "1";
+
+              newImg.onload = () => {
+                container.appendChild(newImg);
+                requestAnimationFrame(() => {
+                  newImg.classList.add('active');
+                  if (oldImg) {
+                    oldImg.style.zIndex = "2";
+                    oldImg.classList.add('image-exit');
+                    setTimeout(() => oldImg.remove(), (VIEWER_CONFIG.fadeSpeed * 1000) + 100);
                   }
-                  nav.appendChild(seg);
                 });
-                container.appendChild(nav);
-              };
-              const rotate = () => {
-                const oldImg = container.querySelector('.image-container');
-                if (oldImg) oldImg.remove();
-                container.prepend(renderPhoto(photos[idx], 0));
                 updateIndicators(idx);
                 idx = (idx + 1) % photos.length;
               };
-              rotate();
-              window.photoInterval = setInterval(rotate, VIEWER_CONFIG.photoDisplayTime);
+            };
+
+            rotate();
+            if (photos.length > 1) {
+              window.photoInterval = setInterval(rotate, dynamicPhotoTime);
             }
           }, VIEWER_CONFIG.startDelay);
         }
       });
-
-      // --- EXTRA: URL PARAMETER ONDERSTEUNING VOOR HANDMATIG TESTEN ---
-const params = new URLSearchParams(window.location.search);
-if (params.has('title')) {
-    const manualData = {
-        title: params.get('title') || 'Geen Titel',
-        subtitle: params.get('category') || params.get('subtitle') || 'Nieuws',
-        content: params.get('message') || params.get('content') || '',
-        date: new Date().toLocaleDateString('nl-NL'),
-        authors: 'Redactie',
-        images: params.get('image') ? [params.get('image')] : []
-    };
-    
-    // We sturen de data naar onszelf toe alsof het van de Master Player komt
-    window.dispatchEvent(new MessageEvent('message', { data: manualData }));
-}
     </script>
   </body>
 </html>
