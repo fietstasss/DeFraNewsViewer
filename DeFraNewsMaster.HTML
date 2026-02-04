@@ -77,7 +77,7 @@
     <script>
         // --- MASTER CONFIGURATIE ---
         const MASTER_CONFIG = {
-            displayTime: 45*1000,            //Time per newsArticle in milliseconds
+            displayTime: 8.5*1000,            //Time per newsArticle in milliseconds
             fadeSpeed: 2.8,                 //Fade speed between articles in seconds
             transitionType: "slide", 
             pillWidth: "60px",
@@ -93,7 +93,19 @@
         let index = 0;
         let isFirstRun = true;
         let timerStarted = false;
+        let viewerReady = false;
+        let pendingPayload = null;
         const viewer = document.getElementById('viewer');
+
+        window.addEventListener('message', (e) => {
+            if (e.data === 'READY') {
+                viewerReady = true;
+                if (pendingPayload) {
+                    viewer.contentWindow.postMessage(pendingPayload, '*');
+                    pendingPayload = null;
+                }
+            }
+        });
 
         //  Initialize CSS variables based on MASTER_CONFIG
         document.documentElement.style.setProperty('--fade-speed', MASTER_CONFIG.fadeSpeed + 's');
@@ -174,7 +186,8 @@
         function play() {
             if (articles.length === 0) return;
             
-            const art = articles[index];
+            const currentIndex = index;
+            const art = articles[currentIndex];
 
             document.querySelectorAll('.article-dot').forEach((dot, i) => {
                 dot.classList.remove('active');
@@ -188,11 +201,8 @@
 
             if (isFirstRun) {
                 isFirstRun = false;
-                updateViewerContent(art);
-            } else {
-                viewer.classList.add('slide-prepare');
-                updateViewerContent(art);
             }
+            updateViewerContent(art, currentIndex);
 
             index = (index + 1) % articles.length;
 
@@ -204,29 +214,24 @@
             }
         }
 
-        function updateViewerContent(art) {
-            viewer.src = "DeFraNewsViewerTemplate.HTML?v=" + Date.now();
-            
-            window.onmessage = (e) => {
-                if (e.data === 'READY') {
-                    viewer.contentWindow.postMessage({
-                        title: art.title,
-                        subtitle: art.subtitle, // Nu direct gemapt op JSON key
-                        content: art.content,   // Nu direct gemapt op JSON key
-                        date: art.start || '',
-                        authors: art.authors || 'Redactie Dekkers-Fransen',
-                        images: art.images || [],
-                        displayTime: MASTER_CONFIG.displayTime,
-                        currentIndex: index,           // Send the current index to the TemplateViewer html
-                        totalArticles: articles.length // Send the total number of articles to the TemplateViewer html
-                    }, '*');
-                    
-                    setTimeout(() => {
-                        viewer.style.opacity = "1";
-                        viewer.classList.remove('slide-prepare');
-                    }, 100); 
-                }
+        function updateViewerContent(art, currentIndex) {
+            const payload = {
+                title: art.title,
+                subtitle: art.subtitle, // Nu direct gemapt op JSON key
+                content: art.content,   // Nu direct gemapt op JSON key
+                date: art.start || '',
+                authors: art.authors || 'Redactie Dekkers-Fransen',
+                images: art.images || [],
+                displayTime: MASTER_CONFIG.displayTime,
+                currentIndex: currentIndex,     // Send the current index to the TemplateViewer html
+                totalArticles: articles.length  // Send the total number of articles to the TemplateViewer html
             };
+
+            if (viewerReady && viewer.contentWindow) {
+                viewer.contentWindow.postMessage(payload, '*');
+            } else {
+                pendingPayload = payload;
+            }
         }
 
         function renderArticleNav() {

@@ -36,7 +36,12 @@
         zoomScale: 1.05,           // How much the photo zooms in (1.05 = 5%)
         zoomDuration: 15,          // Time for a full zoom-cycle (seconds)
         photoShadow: 0.15,         // Shadow intensity (0 to 1)
-        useAnimations: true        // Enable/disable fade-in effects
+        useAnimations: true,       // Enable/disable fade-in effects
+
+        // --- SWIPE TRANSITIONS ---
+        swipeOutDuration: 320,      // Swipe-out duration (ms)
+        swipeInDuration: 520,       // Swipe-in duration (ms)
+        swipeDistance: 42           // Swipe distance (px)
       };
     </script>
     <style>
@@ -209,6 +214,30 @@
         margin-bottom: 40px;
       }
 
+      .image-side.swipe-out {
+        animation: imageSwipeOut var(--swipe-out) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-side.swipe-in {
+        animation: imageSwipeIn var(--swipe-in) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .text-side.swipe-out {
+        animation: textSwipeOut var(--swipe-out) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .text-side.swipe-in {
+        animation: textSwipeIn var(--swipe-in) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .content-swap {
+        animation: contentSwap 0.6s ease;
+      }
+
+      .meta-swap {
+        animation: metaSwap 0.4s ease;
+      }
+
       /* --- VERTICAL TEXT PROGRESS INDICATOR --- */
       .text-progress-track {
         position: absolute;
@@ -287,6 +316,36 @@
         from { width: 0%; }
         to { width: 100%; }
       }
+
+      @keyframes imageSwipeOut {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(calc(-1 * var(--swipe-distance))); }
+      }
+
+      @keyframes imageSwipeIn {
+        from { opacity: 0; transform: translateX(calc(-1 * var(--swipe-distance))); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes textSwipeOut {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(var(--swipe-distance)); }
+      }
+
+      @keyframes textSwipeIn {
+        from { opacity: 0; transform: translateX(var(--swipe-distance)); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes contentSwap {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes metaSwap {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
     </style>
   </head>
   <body>
@@ -328,112 +387,133 @@
       document.documentElement.style.setProperty('--computed-pill-width', VIEWER_CONFIG.pillWidth);
       document.documentElement.style.setProperty('--computed-pill-height', VIEWER_CONFIG.pillHeight);
       document.documentElement.style.setProperty('--computed-pill-radius', VIEWER_CONFIG.pillRadius);
+      document.documentElement.style.setProperty('--swipe-out', (VIEWER_CONFIG.swipeOutDuration / 1000) + 's');
+      document.documentElement.style.setProperty('--swipe-in', (VIEWER_CONFIG.swipeInDuration / 1000) + 's');
+      document.documentElement.style.setProperty('--swipe-distance', VIEWER_CONFIG.swipeDistance + 'px');
 
-      window.onload = function() {
-        window.parent.postMessage('READY', '*');
-      };
+      let swipeToken = 0;
+      let imageUpdateToken = 0;
+      let hasRenderedImages = false;
 
-      window.addEventListener('message', function(event) {
-        if (event.data && event.data !== 'READY') {
-          const data = event.data;
-          
-          document.getElementById('view-title').innerText = data.title || '';
-          document.getElementById('view-subtitle').innerText = data.subtitle || '';
-          const formattedContent = (data.content || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
-          document.getElementById('view-text').innerHTML = formattedContent;
-          
-          // Datum Logica
-          if (data.date) {
-            const datumObject = new Date(data.date);
-            const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-            // Formatteer naar NL (bijv. woensdag 14 januari 2026)
-            let datumTekst = datumObject.toLocaleDateString('nl-NL', opties);
-            // Eerste letter hoofdletter maken
-            datumTekst = datumTekst.charAt(0).toUpperCase() + datumTekst.slice(1);
-            document.getElementById('view-date').innerText = "Nieuwsdatum: " + datumTekst;
-          } else {
-            document.getElementById('view-date').innerText = "";
-          }
+      function restartAnimation(el, className) {
+        if (!el) return;
+        el.classList.remove(className);
+        void el.offsetWidth;
+        el.classList.add(className);
+      }
 
-          // Auteurs Logica
-          document.getElementById('view-authors').innerText = "Auteur(s): " + (data.authors || 'Redactie Dekkers-Fransen');
+      function triggerSwapAnimation() {
+        if (!VIEWER_CONFIG.useAnimations) return;
+        const metaTargets = [
+          document.getElementById('view-title'),
+          document.getElementById('view-date'),
+          document.getElementById('view-authors'),
+          document.getElementById('view-pills')
+        ];
+        metaTargets.forEach((el) => restartAnimation(el, 'meta-swap'));
+      }
 
-          // Pillen Logica in Blauwe Balk
-          const pillContainer = document.getElementById('view-pills');
-          pillContainer.innerHTML = '';
-          if (data.totalArticles > 1) {
-              for (let i = 0; i < data.totalArticles; i++) {
-                  const pill = document.createElement('div');
-                  pill.className = 'mini-pill';
-                  if (i < data.currentIndex) pill.className += ' completed';
-                  if (i === data.currentIndex) {
-                      pill.className += ' active';
-                      pill.style.setProperty('--pill-duration', (data.displayTime / 1000) + 's');
-                  }
-                  pillContainer.appendChild(pill);
-              }
-          }
+      function resetScrollState() {
+        const scrollContainer = document.getElementById('scroll-target');
+        const progressTrack = document.getElementById('text-track');
+        const progressBar = document.getElementById('text-progress-bar');
+        if (scrollContainer) {
+          scrollContainer.style.animation = "none";
+          scrollContainer.style.transform = "translateY(0)";
+        }
+        if (progressBar) {
+          progressBar.style.animation = "none";
+          progressBar.style.height = "0%";
+        }
+        if (progressTrack) {
+          progressTrack.style.display = 'none';
+        }
+      }
 
-          // 2. SMART SCROLL LOGIC (NU VOLLEDIG SYNCHROON MET MASTER)
+      function runSwipeTransition(updateFn) {
+        if (!VIEWER_CONFIG.useAnimations) {
+          updateFn();
+          return;
+        }
+
+        const textSide = document.querySelector('.text-side');
+        const imageSide = document.querySelector('.image-side');
+        const outMs = VIEWER_CONFIG.swipeOutDuration || 300;
+        const inMs = VIEWER_CONFIG.swipeInDuration || 500;
+        const currentToken = ++swipeToken;
+
+        if (window.swipeTimers) {
+          window.swipeTimers.forEach((t) => clearTimeout(t));
+        }
+        window.swipeTimers = [];
+
+        textSide.classList.remove('swipe-in', 'swipe-out');
+        imageSide.classList.remove('swipe-in', 'swipe-out');
+        void textSide.offsetWidth;
+        void imageSide.offsetWidth;
+        textSide.classList.add('swipe-out');
+        imageSide.classList.add('swipe-out');
+
+        window.swipeTimers.push(setTimeout(() => {
+          Promise.resolve(updateFn()).then(() => {
+            if (currentToken !== swipeToken) return;
+            textSide.classList.remove('swipe-out');
+            imageSide.classList.remove('swipe-out');
+            void textSide.offsetWidth;
+            void imageSide.offsetWidth;
+            textSide.classList.add('swipe-in');
+            imageSide.classList.add('swipe-in');
+
+            window.swipeTimers.push(setTimeout(() => {
+              if (currentToken !== swipeToken) return;
+              textSide.classList.remove('swipe-in');
+              imageSide.classList.remove('swipe-in');
+            }, inMs + 40));
+          });
+        }, outMs));
+      }
+
+      function updateImages(data) {
+        const token = ++imageUpdateToken;
+        const container = document.getElementById('image-display-area');
+        const photos = data.images || [];
+        if (window.photoInterval) clearInterval(window.photoInterval);
+
+        const placeholder = document.createElement('div');
+        placeholder.style.background = "var(--photo-bg)";
+        placeholder.style.height = "100%";
+        placeholder.style.width = "100%";
+
+        container.innerHTML = '';
+        container.appendChild(placeholder);
+
+        const startDelay = hasRenderedImages ? 0 : VIEWER_CONFIG.startDelay;
+
+        return new Promise((resolve) => {
+          let readySent = false;
+          const signalReady = () => {
+            if (readySent) return;
+            readySent = true;
+            resolve();
+          };
+
+          const safeTimer = setTimeout(() => {
+            signalReady();
+          }, 1200);
+
           setTimeout(() => {
-            const scrollContainer = document.getElementById('scroll-target');
-            const scrollWindow = document.querySelector('.scroll-window');
-            const progressBar = document.getElementById('text-progress-bar');
-            const progressTrack = document.getElementById('text-track');
-            const textHeight = scrollContainer.scrollHeight;
-            const windowHeight = scrollWindow.offsetHeight;
-
-            // Totale tijd van de Master (bijv. 30000ms)
-            const masterTotalTime = data.displayTime || 30000;
-
-            if (textHeight > windowHeight) {
-              const distance = textHeight - windowHeight + 40;
-              
-              // We gebruiken de Master tijd als basis voor de totale animatie
-              const totalDurationMs = masterTotalTime;
-              const startPausePercent = (VIEWER_CONFIG.pauseAtStart / totalDurationMs) * 100;
-              const endPausePercent = 100 - ((VIEWER_CONFIG.pauseAtEnd / totalDurationMs) * 100);
-              
-              if (VIEWER_CONFIG.showTextProgress) progressTrack.style.display = 'block';
-
-              const styleId = 'dynamic-animations';
-              let styleTag = document.getElementById(styleId);
-              if (!styleTag) {
-                styleTag = document.createElement('style');
-                styleTag.id = styleId;
-                document.head.appendChild(styleTag);
-              }
-              styleTag.innerHTML = `
-                @keyframes dynamicAutoScroll {
-                    0% { transform: translateY(0); }
-                    ${startPausePercent}% { transform: translateY(0); }
-                    ${endPausePercent}% { transform: translateY(-${distance}px); }
-                    100% { transform: translateY(-${distance}px); }
-                }
-                @keyframes dynamicProgressHeight {
-                    0% { height: 0%; }
-                    ${startPausePercent}% { height: 0%; }
-                    ${endPausePercent}% { height: 100%; }
-                    100% { height: 100%; }
-                }
-                #scroll-target { animation: dynamicAutoScroll ${totalDurationMs / 1000}s linear infinite; }
-                #text-progress-bar { animation: dynamicProgressHeight ${totalDurationMs / 1000}s linear infinite; }
-              `;
-            } else {
-              scrollContainer.style.animation = "none";
-              progressTrack.style.display = 'none';
+            if (token !== imageUpdateToken) {
+              clearTimeout(safeTimer);
+              signalReady();
+              return;
             }
-          }, 200);
 
-          // 3. PHOTO DISPLAY & CAROUSEL LOGIC
-          const container = document.getElementById('image-display-area');
-          const photos = data.images || [];
-          if (window.photoInterval) clearInterval(window.photoInterval);
-
-          setTimeout(() => {
             container.innerHTML = '';
             if (photos.length === 0) {
-              container.innerHTML = '<div style="background:var(--photo-bg); height:100%;"></div>';
+              container.appendChild(placeholder);
+              hasRenderedImages = true;
+              clearTimeout(safeTimer);
+              signalReady();
               return;
             }
 
@@ -471,6 +551,7 @@
               newImg.style.zIndex = "1";
 
               newImg.onload = () => {
+                if (token !== imageUpdateToken) return;
                 container.appendChild(newImg);
                 requestAnimationFrame(() => {
                   newImg.classList.add('active');
@@ -482,6 +563,16 @@
                 });
                 updateIndicators(idx);
                 idx = (idx + 1) % photos.length;
+                hasRenderedImages = true;
+                clearTimeout(safeTimer);
+                signalReady();
+              };
+
+              newImg.onerror = () => {
+                if (token !== imageUpdateToken) return;
+                hasRenderedImages = true;
+                clearTimeout(safeTimer);
+                signalReady();
               };
             };
 
@@ -489,7 +580,113 @@
             if (photos.length > 1) {
               window.photoInterval = setInterval(rotate, dynamicPhotoTime);
             }
-          }, VIEWER_CONFIG.startDelay);
+          }, startDelay);
+        });
+      }
+
+      window.onload = function() {
+        window.parent.postMessage('READY', '*');
+      };
+
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data !== 'READY') {
+          const data = event.data;
+
+          runSwipeTransition(() => {
+            resetScrollState();
+            document.getElementById('view-title').innerText = data.title || '';
+            document.getElementById('view-subtitle').innerText = data.subtitle || '';
+            const formattedContent = (data.content || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+            document.getElementById('view-text').innerHTML = formattedContent;
+            
+            // Datum Logica
+            if (data.date) {
+              const datumObject = new Date(data.date);
+              const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+              // Formatteer naar NL (bijv. woensdag 14 januari 2026)
+              let datumTekst = datumObject.toLocaleDateString('nl-NL', opties);
+              // Eerste letter hoofdletter maken
+              datumTekst = datumTekst.charAt(0).toUpperCase() + datumTekst.slice(1);
+              document.getElementById('view-date').innerText = "Nieuwsdatum: " + datumTekst;
+            } else {
+              document.getElementById('view-date').innerText = "";
+            }
+
+            // Auteurs Logica
+            document.getElementById('view-authors').innerText = "Auteur(s): " + (data.authors || 'Redactie Dekkers-Fransen');
+
+            // Pillen Logica in Blauwe Balk
+            const pillContainer = document.getElementById('view-pills');
+            pillContainer.innerHTML = '';
+            if (data.totalArticles > 1) {
+                for (let i = 0; i < data.totalArticles; i++) {
+                    const pill = document.createElement('div');
+                    pill.className = 'mini-pill';
+                    if (i < data.currentIndex) pill.className += ' completed';
+                    if (i === data.currentIndex) {
+                        pill.className += ' active';
+                        pill.style.setProperty('--pill-duration', (data.displayTime / 1000) + 's');
+                    }
+                    pillContainer.appendChild(pill);
+                }
+            }
+
+            triggerSwapAnimation();
+
+            // 2. SMART SCROLL LOGIC (NU VOLLEDIG SYNCHROON MET MASTER)
+            setTimeout(() => {
+              const scrollContainer = document.getElementById('scroll-target');
+              const scrollWindow = document.querySelector('.scroll-window');
+              const progressBar = document.getElementById('text-progress-bar');
+              const progressTrack = document.getElementById('text-track');
+              const textHeight = scrollContainer.scrollHeight;
+              const windowHeight = scrollWindow.offsetHeight;
+
+              // Totale tijd van de Master (bijv. 30000ms)
+              const masterTotalTime = data.displayTime || 30000;
+
+              if (textHeight > windowHeight) {
+                const distance = textHeight - windowHeight + 40;
+                
+                // We gebruiken de Master tijd als basis voor de totale animatie
+                const totalDurationMs = masterTotalTime;
+                const startPausePercent = (VIEWER_CONFIG.pauseAtStart / totalDurationMs) * 100;
+                const endPausePercent = 100 - ((VIEWER_CONFIG.pauseAtEnd / totalDurationMs) * 100);
+                
+                if (VIEWER_CONFIG.showTextProgress) progressTrack.style.display = 'block';
+
+                const styleId = 'dynamic-animations';
+                let styleTag = document.getElementById(styleId);
+                if (!styleTag) {
+                  styleTag = document.createElement('style');
+                  styleTag.id = styleId;
+                  document.head.appendChild(styleTag);
+                }
+                styleTag.innerHTML = `
+                  @keyframes dynamicAutoScroll {
+                      0% { transform: translateY(0); }
+                      ${startPausePercent}% { transform: translateY(0); }
+                      ${endPausePercent}% { transform: translateY(-${distance}px); }
+                      100% { transform: translateY(-${distance}px); }
+                  }
+                  @keyframes dynamicProgressHeight {
+                      0% { height: 0%; }
+                      ${startPausePercent}% { height: 0%; }
+                      ${endPausePercent}% { height: 100%; }
+                      100% { height: 100%; }
+                  }
+                  #scroll-target { animation: dynamicAutoScroll ${totalDurationMs / 1000}s linear infinite; }
+                  #text-progress-bar { animation: dynamicProgressHeight ${totalDurationMs / 1000}s linear infinite; }
+                `;
+              } else {
+                scrollContainer.style.animation = "none";
+                progressTrack.style.display = 'none';
+              }
+            }, 200);
+
+            // 3. PHOTO DISPLAY & CAROUSEL LOGIC
+            return updateImages(data);
+          });
         }
       });
     </script>
