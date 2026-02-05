@@ -10,11 +10,19 @@
             background: #fcfcfc; 
         }
 
+        #viewer-wrap {
+            width: calc(100vw / var(--viewer-scale, 1));
+            height: calc((100vh - var(--bottom-margin, 0vh)) / var(--viewer-scale, 1));
+            transform: scale(var(--viewer-scale, 1));
+            transform-origin: top left;
+        }
+
         #viewer {
             border: none;
-            width: 100vw;
-            height: calc(100vh - var(--bottom-margin, 0vh));
+            width: 100%;
+            height: 100%;
             background-color: transparent;
+            display: block;
 
             /* Cubic-bezier zorgt voor een 'zachte landing' van het artikel */
             transition: transform var(--fade-speed, 0.8s) cubic-bezier(0.23, 1, 0.32, 1), 
@@ -83,24 +91,34 @@
 
 <body>
     <div id="article-nav"></div>
-    <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
+    <div id="viewer-wrap">
+        <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
+    </div>
     <div id="bottom-fade"></div>
 
     <script>
         // --- MASTER CONFIGURATIE ---
         const MASTER_CONFIG = {
-            displayTime: 15*1000,            //Time per newsArticle in milliseconds
+            displayTime: 45*1000,            //Time per newsArticle in milliseconds
             fadeSpeed: 2.8,                 //Fade speed between articles in seconds
             transitionType: "slide", 
             pillWidth: "60px",
             pillActiveColor: "#e67e22",
             pillCompletedColor: "#e67e22",
             pillBackgroundColor: "#e67d225c",
-            bottomMarginPercent: 5         // Reserve space at bottom of screen (percent) for newsticker
+            bottomMarginPercent: 5,        // Reserve space at bottom of screen (percent) for newsticker
+            defaultZoomPercent: 100,       // Default zoom percent when no URL param is set
+            defaultDisplayTimeSec: 45      // Default display time in seconds (URL override)
         };
 
         const params = new URLSearchParams(window.location.search);
         const playlistUrl = params.get('list');
+        const zoomParam = params.get('zoom');
+        const zoomPercent = zoomParam ? parseFloat(zoomParam) : MASTER_CONFIG.defaultZoomPercent;
+        const displayTimeParam = params.get('displayTime');
+        const displayTimeSec = displayTimeParam ? parseFloat(displayTimeParam) : MASTER_CONFIG.defaultDisplayTimeSec;
+        const displayTimeMs = (isFinite(displayTimeSec) && displayTimeSec > 0) ? (displayTimeSec * 1000) : MASTER_CONFIG.displayTime;
+        const zoomScale = (isFinite(zoomPercent) && zoomPercent > 0) ? (zoomPercent / 100) : 1;
 
         let articles = [];
         let index = 0;
@@ -127,6 +145,8 @@
         document.documentElement.style.setProperty('--pill-active-color', MASTER_CONFIG.pillActiveColor);
         document.documentElement.style.setProperty('--pill-completed-color', MASTER_CONFIG.pillCompletedColor);
         document.documentElement.style.setProperty('--bottom-margin', MASTER_CONFIG.bottomMarginPercent + 'vh');
+        document.documentElement.style.setProperty('--viewer-scale', zoomScale.toString());
+        MASTER_CONFIG.displayTime = displayTimeMs;
 
         async function loadPlaylist() {
             if (!playlistUrl) return;

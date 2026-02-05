@@ -11,10 +11,14 @@
       const VIEWER_CONFIG = {
         // --- TEXT SCROLL SETTINGS (NU DYNAMISCH) ---
         // pixelsPerSecond wordt nu genegeerd ten gunste van de Master-tijd
-        pauseAtStart:  2*1000,        // Delay at the top (ms)
-        pauseAtEnd:   10*1000,          // Delay at the bottom (ms)
+        pauseAtStartPercent: 10,        // TextScroll Delay at the top (% of displayTime)
+        pauseAtEndPercent: 20,          // TextScroll Delay at the bottom (% of displayTime)
         showTextProgress: true,    // Show/hide the vertical progress bar for text
         scrollBottomPadding: 120,   // Extra distance for the text to end at after scrolling (px)
+        scrollEase: "cubic-bezier(0.2, 0.0, 0.2, 1)", // Smooth ease-in-out
+        scrollRampUpPercent: 10,   // % of time for ramp-up (start)
+        scrollRampDownPercent: 15, // % of time for ramp-down (end)
+        scrollRampSteps: 100,      // Keyframe samples for smooth ramp
 
         // --- PILL ARTICLE INDICATORS ---
         pillWidth: "100px",         // Breedte van de pil
@@ -26,6 +30,7 @@
         fontSizeText: "2.2rem",    // Grootte van de hoofdtekst
         fontSizeSubtitle: "3.0rem",// Grootte van de oranje titel
         contentPadding: "10px 60px",// Witruimte rondom de tekst
+        headerHeight: "65px",      // Hoogte van de witte topbar
         
         // --- PHOTO SETTINGS (DYNAMISCH) ---
         startDelay: 1000,          // Delay before first photo pop-in (ms)
@@ -40,20 +45,20 @@
         // imageTransitionMode: "scale-blur",         // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
         
         
-        imageTransitionSpeed: 3700,  // Image transition/effect/animation duration (ms)
+        imageTransitionSpeed: 2500,  // Image transition/effect/animation duration (ms)
         imageTransitionDirection: "left", // left | right
         imageNeutralColor: "#f5f5f5", // Used by fade-through
         
         // --- VISUAL EFFECTS (THE DIALS) ---
-        fadeSpeed: 0.5,            // Speed of the photo cross-fade (seconds)
-        zoomScale: 1.05,           // How much the photo zooms in (1.05 = 5%)
+        fadeSpeed: 1.5,            // Speed of the photo cross-fade (seconds)
+        zoomScale: 1.06,           // How much the photo zooms in (1.05 = 5%)
         zoomDuration: 15,          // Fallback duration (seconds) - wordt dynamisch overschreven per artikel
-        photoShadow: 0.15,         // Shadow intensity (0 to 1)
+        photoShadow: 0.4,         // Shadow intensity (0 to 1)
         useAnimations: true,       // Enable/disable fade-in effects
 
         // --- SWIPE TRANSITIONS ---
-        swipeOutDuration: 2320,      // Swipe-out duration (ms)
-        swipeInDuration: 2520,       // Swipe-in duration (ms)
+        swipeOutDuration: 300,      // Swipe-out duration (ms)
+        swipeInDuration: 800,       // Swipe-in duration (ms)
         swipeDistance: 142           // Swipe distance (px)
       };
     </script>
@@ -98,7 +103,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 0 50px;
-        height: 100px;
+        height: var(--computed-header-height);
         background: var(--white);
         border-bottom: 2px solid #eee;
         flex-shrink: 0;
@@ -175,7 +180,7 @@
       }
 
       .image-item.slide-in-left {
-        --img-anim: imgSlideInLeft var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        --img-anim: imgSlideInLeft var(--img-trans-duration) cubic-bezier(0.7, 0.2, 0.95, 1) forwards;
       }
 
       .image-item.slide-out-left {
@@ -483,6 +488,7 @@
       document.documentElement.style.setProperty('--computed-text-size', VIEWER_CONFIG.fontSizeText);
       document.documentElement.style.setProperty('--computed-subtitle-size', VIEWER_CONFIG.fontSizeSubtitle);
       document.documentElement.style.setProperty('--computed-padding', VIEWER_CONFIG.contentPadding);
+      document.documentElement.style.setProperty('--computed-header-height', VIEWER_CONFIG.headerHeight);
       document.documentElement.style.setProperty('--image-radius', VIEWER_CONFIG.imageRadius);
       document.documentElement.style.setProperty('--computed-pill-width', VIEWER_CONFIG.pillWidth);
       document.documentElement.style.setProperty('--computed-pill-height', VIEWER_CONFIG.pillHeight);
@@ -492,11 +498,12 @@
       document.documentElement.style.setProperty('--swipe-distance', VIEWER_CONFIG.swipeDistance + 'px');
       document.documentElement.style.setProperty('--img-trans-duration', (VIEWER_CONFIG.imageTransitionSpeed / 1000) + 's');
       document.documentElement.style.setProperty('--neutral-color', VIEWER_CONFIG.imageNeutralColor);
-
       let swipeToken = 0;
       let imageUpdateToken = 0;
       let hasRenderedImages = false;
       let scrollInitTimer = null;
+      let scrollAnim = null;
+      let progressAnim = null;
 
       function restartAnimation(el, className) {
         if (!el) return;
@@ -523,6 +530,14 @@
         if (scrollInitTimer) {
           clearTimeout(scrollInitTimer);
           scrollInitTimer = null;
+        }
+        if (scrollAnim) {
+          scrollAnim.cancel();
+          scrollAnim = null;
+        }
+        if (progressAnim) {
+          progressAnim.cancel();
+          progressAnim = null;
         }
         if (scrollContainer) {
           scrollContainer.style.animation = "none";
@@ -560,8 +575,8 @@
 
           // Totale tijd van de Master (bijv. 30000ms)
           const masterTotalTime = data.displayTime || 30000;
-          const startPauseMs = VIEWER_CONFIG.pauseAtStart || 0;
-          const endPauseMs = VIEWER_CONFIG.pauseAtEnd || 0;
+          const startPauseMs = ((VIEWER_CONFIG.pauseAtStartPercent || 0) / 100) * masterTotalTime;
+          const endPauseMs = ((VIEWER_CONFIG.pauseAtEndPercent || 0) / 100) * masterTotalTime;
           const scrollDurationMs = Math.max(0, masterTotalTime - startPauseMs - endPauseMs);
 
           if (textHeight > windowHeight && scrollDurationMs > 0) {
@@ -577,27 +592,66 @@
               styleTag.id = styleId;
               document.head.appendChild(styleTag);
             }
-            styleTag.innerHTML = `
-              @keyframes dynamicAutoScroll {
-                from { transform: translateY(0); }
-                to { transform: translateY(-${distance}px); }
+            let rampUp = Math.max(0, Math.min(20, VIEWER_CONFIG.scrollRampUpPercent || 0)) / 100;
+            let rampDown = Math.max(0, Math.min(20, VIEWER_CONFIG.scrollRampDownPercent || 0)) / 100;
+            if (rampUp + rampDown > 0.9) {
+              const scale = 0.9 / (rampUp + rampDown);
+              rampUp *= scale;
+              rampDown *= scale;
+            }
+            const steps = Math.max(6, Math.min(60, VIEWER_CONFIG.scrollRampSteps || 24));
+
+            const positionAt = (t) => {
+              const ru = rampUp;
+              const rd = rampDown;
+              if (ru <= 0 && rd <= 0) return t;
+              const midStart = ru;
+              const midEnd = 1 - rd;
+              const denom = 1 - 0.5 * (ru + rd);
+              const v = 1 / denom;
+
+              if (ru > 0 && t < midStart) {
+                return 0.5 * v * (t * t) / ru;
               }
-              @keyframes dynamicProgressHeight {
-                from { height: 0%; }
-                to { height: 100%; }
+              if (rd > 0 && t > midEnd) {
+                const u = t - midEnd;
+                const midDist = 0.5 * v * ru + v * (midEnd - midStart);
+                return midDist + v * u - 0.5 * v * (u * u) / rd;
               }
-            `;
+              return 0.5 * v * ru + v * (t - midStart);
+            };
+
+            const scrollKeyframes = [];
+            const progressKeyframes = [];
+            for (let i = 0; i <= steps; i++) {
+              const t = i / steps;
+              const f = positionAt(t);
+              scrollKeyframes.push({ offset: t, transform: `translateY(-${distance * f}px)` });
+              progressKeyframes.push({ offset: t, height: `${f * 100}%` });
+            }
+
+            if (scrollAnim) scrollAnim.cancel();
+            if (progressAnim) progressAnim.cancel();
 
             scrollContainer.style.animation = "none";
             progressBar.style.animation = "none";
             progressBar.style.height = "0%";
-            void scrollContainer.offsetWidth;
-            void progressBar.offsetHeight;
 
-            scrollContainer.style.animation = `dynamicAutoScroll ${scrollDurationMs / 1000}s linear ${startPauseMs / 1000}s 1 forwards`;
-            progressBar.style.animation = `dynamicProgressHeight ${scrollDurationMs / 1000}s linear ${startPauseMs / 1000}s 1 forwards`;
-            scrollContainer.style.animationDirection = 'normal';
-            progressBar.style.animationDirection = 'normal';
+            scrollAnim = scrollContainer.animate(scrollKeyframes, {
+              duration: scrollDurationMs,
+              delay: startPauseMs,
+              iterations: 1,
+              fill: 'forwards',
+              easing: 'linear'
+            });
+
+            progressAnim = progressBar.animate(progressKeyframes, {
+              duration: scrollDurationMs,
+              delay: startPauseMs,
+              iterations: 1,
+              fill: 'forwards',
+              easing: 'linear'
+            });
           } else {
             scrollContainer.style.animation = "none";
             progressTrack.style.display = 'none';
