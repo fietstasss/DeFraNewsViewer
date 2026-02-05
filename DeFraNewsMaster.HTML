@@ -13,7 +13,7 @@
         #viewer {
             border: none;
             width: 100vw;
-            height: 100vh;
+            height: calc(100vh - var(--bottom-margin, 0vh));
             background-color: transparent;
 
             /* Cubic-bezier zorgt voor een 'zachte landing' van het artikel */
@@ -67,23 +67,36 @@
             background: var(--pill-completed-color, #e67e22);
             opacity: 1;
         }
+
+        #bottom-fade {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--bottom-margin, 0vh);
+            background: linear-gradient(to bottom, rgba(252, 252, 252, 0), #fcfcfc 70%);
+            pointer-events: none;
+            z-index: 9999;
+        }
     </style>
 </head>
 
 <body>
     <div id="article-nav"></div>
     <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
+    <div id="bottom-fade"></div>
 
     <script>
         // --- MASTER CONFIGURATIE ---
         const MASTER_CONFIG = {
-            displayTime: 6.5*1000,            //Time per newsArticle in milliseconds
+            displayTime: 15*1000,            //Time per newsArticle in milliseconds
             fadeSpeed: 2.8,                 //Fade speed between articles in seconds
             transitionType: "slide", 
             pillWidth: "60px",
             pillActiveColor: "#e67e22",
             pillCompletedColor: "#e67e22",
-            pillBackgroundColor: "#e67d225c"
+            pillBackgroundColor: "#e67d225c",
+            bottomMarginPercent: 5         // Reserve space at bottom of screen (percent) for newsticker
         };
 
         const params = new URLSearchParams(window.location.search);
@@ -113,6 +126,7 @@
         document.documentElement.style.setProperty('--pill-bg-color', MASTER_CONFIG.pillBackgroundColor);
         document.documentElement.style.setProperty('--pill-active-color', MASTER_CONFIG.pillActiveColor);
         document.documentElement.style.setProperty('--pill-completed-color', MASTER_CONFIG.pillCompletedColor);
+        document.documentElement.style.setProperty('--bottom-margin', MASTER_CONFIG.bottomMarginPercent + 'vh');
 
         async function loadPlaylist() {
             if (!playlistUrl) return;

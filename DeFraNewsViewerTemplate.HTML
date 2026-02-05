@@ -11,9 +11,10 @@
       const VIEWER_CONFIG = {
         // --- TEXT SCROLL SETTINGS (NU DYNAMISCH) ---
         // pixelsPerSecond wordt nu genegeerd ten gunste van de Master-tijd
-        pauseAtStart:  8*1000,        // Delay at the top (ms)
+        pauseAtStart:  2*1000,        // Delay at the top (ms)
         pauseAtEnd:   10*1000,          // Delay at the bottom (ms)
         showTextProgress: true,    // Show/hide the vertical progress bar for text
+        scrollBottomPadding: 120,   // Extra distance for the text to end at after scrolling (px)
 
         // --- PILL ARTICLE INDICATORS ---
         pillWidth: "100px",         // Breedte van de pil
@@ -30,18 +31,30 @@
         startDelay: 1000,          // Delay before first photo pop-in (ms)
         staggerDelay: 600,         // Delay between first and second photo in grid (ms)
         imageRadius: "0px",         // Border radius for images (px)
+
+        // imageTransitionMode: "slide",                 // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        // imageTransitionMode: "fade",               // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        // imageTransitionMode: "cut",                // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        // imageTransitionMode: "fade-through",       // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        imageTransitionMode: "wipe",               // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        // imageTransitionMode: "scale-blur",         // Choose one effect: slide | fade | cut | slide | fade-through | wipe | scale-blur
+        
+        
+        imageTransitionSpeed: 3700,  // Image transition/effect/animation duration (ms)
+        imageTransitionDirection: "left", // left | right
+        imageNeutralColor: "#f5f5f5", // Used by fade-through
         
         // --- VISUAL EFFECTS (THE DIALS) ---
         fadeSpeed: 0.5,            // Speed of the photo cross-fade (seconds)
-        zoomScale: 1.12,           // How much the photo zooms in (1.05 = 5%)
-        zoomDuration: 15,          // Time for a full zoom-cycle (seconds)
+        zoomScale: 1.05,           // How much the photo zooms in (1.05 = 5%)
+        zoomDuration: 15,          // Fallback duration (seconds) - wordt dynamisch overschreven per artikel
         photoShadow: 0.15,         // Shadow intensity (0 to 1)
         useAnimations: true,       // Enable/disable fade-in effects
 
         // --- SWIPE TRANSITIONS ---
-        swipeOutDuration: 320,      // Swipe-out duration (ms)
-        swipeInDuration: 520,       // Swipe-in duration (ms)
-        swipeDistance: 42           // Swipe distance (px)
+        swipeOutDuration: 2320,      // Swipe-out duration (ms)
+        swipeInDuration: 2520,       // Swipe-in duration (ms)
+        swipeDistance: 142           // Swipe distance (px)
       };
     </script>
     <style>
@@ -125,6 +138,7 @@
         flex: 1;
         min-height: 0;
         height: 0;
+        background: var(--light-bg);
       }
 
       /* --- IMAGE SECTION (Left) --- */
@@ -133,7 +147,7 @@
         display: block;
         height: 100%;
         width: 100%;
-        background-color: var(--photo-bg);
+        background-color: transparent;
         overflow: hidden;
       }
 
@@ -142,18 +156,64 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
-        transition: opacity var(--computed-fade-speed) ease-in-out; 
         opacity: 0;
         display: block;
         box-shadow: 0 0 25px rgba(0, 0, 0, var(--computed-shadow));
         border-radius: var(--image-radius); /* Pas de 20px aan naar smaak voor rondere of rechtere hoeken */
         overflow: hidden;    /* Zorgt ervoor dat de afbeelding echt binnen de ronde hoeken blijft */
+        --img-anim: none;
 
       }
 
       .image-item.active {
         opacity: 1;
-        animation: slowZoom var(--computed-zoom-duration) ease-in-out forwards;
+        animation: var(--img-anim), slowZoom var(--computed-zoom-duration) ease-in-out forwards;
+      }
+
+      .image-item.transition-fade {
+        transition: opacity var(--computed-fade-speed) ease-in-out;
+      }
+
+      .image-item.slide-in-left {
+        --img-anim: imgSlideInLeft var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.slide-out-left {
+        animation: imgSlideOutLeft var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.slide-in-right {
+        --img-anim: imgSlideInRight var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.slide-out-right {
+        animation: imgSlideOutRight var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.wipe-in-left {
+        --img-anim: imgWipeInLeft var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.wipe-in-right {
+        --img-anim: imgWipeInRight var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.scale-blur-in {
+        --img-anim: imgScaleBlurIn var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .image-item.scale-blur-out {
+        animation: imgScaleBlurOut var(--img-trans-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      .neutral-fade-layer {
+        position: absolute;
+        inset: 0;
+        background: var(--neutral-color);
+        opacity: 0;
+        transition: opacity var(--img-trans-duration) ease;
+        pointer-events: none;
+        z-index: 10;
       }
 
       .image-exit {
@@ -163,6 +223,46 @@
       @keyframes slowZoom {
           0% { transform: scale(1.0); }
           100% { transform: scale(var(--computed-zoom-scale)); }
+      }
+
+      @keyframes imgSlideInLeft {
+        from { opacity: 0; transform: translateX(6%); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes imgSlideOutLeft {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(-6%); }
+      }
+
+      @keyframes imgSlideInRight {
+        from { opacity: 0; transform: translateX(-6%); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes imgSlideOutRight {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(6%); }
+      }
+
+      @keyframes imgWipeInLeft {
+        from { opacity: 0; clip-path: inset(0 100% 0 0); }
+        to { opacity: 1; clip-path: inset(0 0 0 0); }
+      }
+
+      @keyframes imgWipeInRight {
+        from { opacity: 0; clip-path: inset(0 0 0 100%); }
+        to { opacity: 1; clip-path: inset(0 0 0 0); }
+      }
+
+      @keyframes imgScaleBlurIn {
+        from { opacity: 0; transform: scale(1.04); filter: blur(10px); }
+        to { opacity: 1; transform: scale(1); filter: blur(0); }
+      }
+
+      @keyframes imgScaleBlurOut {
+        from { opacity: 1; transform: scale(1); filter: blur(0); }
+        to { opacity: 0; transform: scale(0.98); filter: blur(10px); }
       }
 
       /* --- TEXT SECTION (Right) --- */
@@ -192,8 +292,8 @@
         overflow: hidden;
         position: relative;
         margin-top: 0;
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40px);
-        mask-image: linear-gradient(to bottom, transparent 0%, black 40px);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40px, black calc(100% - 40px), transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0%, black 40px, black calc(100% - 40px), transparent 100%);
       }
 
       .scroll-container {
@@ -390,10 +490,13 @@
       document.documentElement.style.setProperty('--swipe-out', (VIEWER_CONFIG.swipeOutDuration / 1000) + 's');
       document.documentElement.style.setProperty('--swipe-in', (VIEWER_CONFIG.swipeInDuration / 1000) + 's');
       document.documentElement.style.setProperty('--swipe-distance', VIEWER_CONFIG.swipeDistance + 'px');
+      document.documentElement.style.setProperty('--img-trans-duration', (VIEWER_CONFIG.imageTransitionSpeed / 1000) + 's');
+      document.documentElement.style.setProperty('--neutral-color', VIEWER_CONFIG.imageNeutralColor);
 
       let swipeToken = 0;
       let imageUpdateToken = 0;
       let hasRenderedImages = false;
+      let scrollInitTimer = null;
 
       function restartAnimation(el, className) {
         if (!el) return;
@@ -417,6 +520,10 @@
         const scrollContainer = document.getElementById('scroll-target');
         const progressTrack = document.getElementById('text-track');
         const progressBar = document.getElementById('text-progress-bar');
+        if (scrollInitTimer) {
+          clearTimeout(scrollInitTimer);
+          scrollInitTimer = null;
+        }
         if (scrollContainer) {
           scrollContainer.style.animation = "none";
           scrollContainer.style.transform = "translateY(0)";
@@ -424,12 +531,81 @@
         if (progressBar) {
           progressBar.style.animation = "none";
           progressBar.style.height = "0%";
+          progressBar.style.transform = "none";
         }
         if (progressTrack) {
           progressTrack.style.display = 'none';
         }
       }
 
+      function startScroll(data) {
+        const scrollContainer = document.getElementById('scroll-target');
+        const scrollWindow = document.querySelector('.scroll-window');
+        const progressBar = document.getElementById('text-progress-bar');
+        const progressTrack = document.getElementById('text-track');
+
+        if (!scrollContainer || !scrollWindow) return;
+
+        if (scrollInitTimer) {
+          clearTimeout(scrollInitTimer);
+          scrollInitTimer = null;
+        }
+
+        // Wait two frames so layout (scrollHeight) is accurate after content update
+        scrollInitTimer = setTimeout(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+          const textHeight = scrollContainer.scrollHeight;
+          const windowHeight = scrollWindow.offsetHeight;
+
+          // Totale tijd van de Master (bijv. 30000ms)
+          const masterTotalTime = data.displayTime || 30000;
+          const startPauseMs = VIEWER_CONFIG.pauseAtStart || 0;
+          const endPauseMs = VIEWER_CONFIG.pauseAtEnd || 0;
+          const scrollDurationMs = Math.max(0, masterTotalTime - startPauseMs - endPauseMs);
+
+          if (textHeight > windowHeight && scrollDurationMs > 0) {
+            const bottomPadding = VIEWER_CONFIG.scrollBottomPadding || 0;
+            const distance = textHeight - windowHeight + bottomPadding;
+
+            if (VIEWER_CONFIG.showTextProgress) progressTrack.style.display = 'block';
+
+            const styleId = 'dynamic-animations';
+            let styleTag = document.getElementById(styleId);
+            if (!styleTag) {
+              styleTag = document.createElement('style');
+              styleTag.id = styleId;
+              document.head.appendChild(styleTag);
+            }
+            styleTag.innerHTML = `
+              @keyframes dynamicAutoScroll {
+                from { transform: translateY(0); }
+                to { transform: translateY(-${distance}px); }
+              }
+              @keyframes dynamicProgressHeight {
+                from { height: 0%; }
+                to { height: 100%; }
+              }
+            `;
+
+            scrollContainer.style.animation = "none";
+            progressBar.style.animation = "none";
+            progressBar.style.height = "0%";
+            void scrollContainer.offsetWidth;
+            void progressBar.offsetHeight;
+
+            scrollContainer.style.animation = `dynamicAutoScroll ${scrollDurationMs / 1000}s linear ${startPauseMs / 1000}s 1 forwards`;
+            progressBar.style.animation = `dynamicProgressHeight ${scrollDurationMs / 1000}s linear ${startPauseMs / 1000}s 1 forwards`;
+            scrollContainer.style.animationDirection = 'normal';
+            progressBar.style.animationDirection = 'normal';
+          } else {
+            scrollContainer.style.animation = "none";
+            progressTrack.style.display = 'none';
+          }
+            });
+          });
+        }, 0);
+      }
       function runSwipeTransition(updateFn) {
         if (!VIEWER_CONFIG.useAnimations) {
           updateFn();
@@ -480,7 +656,7 @@
         if (window.photoInterval) clearInterval(window.photoInterval);
 
         const placeholder = document.createElement('div');
-        placeholder.style.background = "var(--photo-bg)";
+        placeholder.style.background = "var(--light-bg)";
         placeholder.style.height = "100%";
         placeholder.style.width = "100%";
 
@@ -520,6 +696,9 @@
             let idx = 0;
             const masterDisplayTime = data.displayTime || 30000;
             const dynamicPhotoTime = masterDisplayTime / photos.length;
+            container.style.setProperty('--computed-zoom-duration', (dynamicPhotoTime / 1000) + 's');
+            container.style.setProperty('--img-trans-duration', (VIEWER_CONFIG.imageTransitionSpeed / 1000) + 's');
+            container.style.setProperty('--neutral-color', VIEWER_CONFIG.imageNeutralColor);
 
             const updateIndicators = (currentIdx) => {
               const existing = container.querySelector('.photo-indicators');
@@ -552,15 +731,76 @@
 
               newImg.onload = () => {
                 if (token !== imageUpdateToken) return;
-                container.appendChild(newImg);
-                requestAnimationFrame(() => {
+                const mode = VIEWER_CONFIG.imageTransitionMode || 'fade';
+                const dir = VIEWER_CONFIG.imageTransitionDirection || 'left';
+                const transitionMs = VIEWER_CONFIG.imageTransitionSpeed || 700;
+
+                if (mode === 'cut') {
+                  container.appendChild(newImg);
                   newImg.classList.add('active');
-                  if (oldImg) {
-                    oldImg.style.zIndex = "2";
-                    oldImg.classList.add('image-exit');
-                    setTimeout(() => oldImg.remove(), (VIEWER_CONFIG.fadeSpeed * 1000) + 100);
+                  if (oldImg) oldImg.remove();
+                } else if (mode === 'fade') {
+                  newImg.classList.add('transition-fade');
+                  container.appendChild(newImg);
+                  requestAnimationFrame(() => {
+                    newImg.classList.add('active');
+                    if (oldImg) {
+                      oldImg.classList.remove('active');
+                      oldImg.style.zIndex = "2";
+                      oldImg.classList.add('image-exit');
+                      setTimeout(() => oldImg.remove(), (VIEWER_CONFIG.fadeSpeed * 1000) + 100);
+                    }
+                  });
+                } else if (mode === 'slide') {
+                  container.appendChild(newImg);
+                  if (dir === 'right') {
+                    newImg.classList.add('slide-in-right');
+                    if (oldImg) {
+                      oldImg.classList.remove('active');
+                      oldImg.classList.add('slide-out-right');
+                    }
+                  } else {
+                    newImg.classList.add('slide-in-left');
+                    if (oldImg) {
+                      oldImg.classList.remove('active');
+                      oldImg.classList.add('slide-out-left');
+                    }
                   }
-                });
+                  newImg.classList.add('active');
+                  if (oldImg) setTimeout(() => oldImg.remove(), transitionMs + 60);
+                } else if (mode === 'wipe') {
+                  container.appendChild(newImg);
+                  if (dir === 'right') newImg.classList.add('wipe-in-right');
+                  else newImg.classList.add('wipe-in-left');
+                  newImg.classList.add('active');
+                  if (oldImg) oldImg.remove();
+                } else if (mode === 'scale-blur') {
+                  container.appendChild(newImg);
+                  newImg.classList.add('scale-blur-in', 'active');
+                  if (oldImg) {
+                    oldImg.classList.remove('active');
+                    oldImg.classList.add('scale-blur-out');
+                  }
+                  if (oldImg) setTimeout(() => oldImg.remove(), transitionMs + 60);
+                } else if (mode === 'fade-through') {
+                  let layer = container.querySelector('.neutral-fade-layer');
+                  if (!layer) {
+                    layer = document.createElement('div');
+                    layer.className = 'neutral-fade-layer';
+                    container.appendChild(layer);
+                  }
+                  layer.style.opacity = '1';
+                  setTimeout(() => {
+                    if (oldImg) oldImg.remove();
+                    container.appendChild(newImg);
+                    newImg.classList.add('active');
+                    layer.style.opacity = '0';
+                  }, Math.max(120, Math.floor(transitionMs * 0.5)));
+                } else {
+                  container.appendChild(newImg);
+                  newImg.classList.add('active');
+                  if (oldImg) oldImg.remove();
+                }
                 updateIndicators(idx);
                 idx = (idx + 1) % photos.length;
                 hasRenderedImages = true;
@@ -634,55 +874,7 @@
             triggerSwapAnimation();
 
             // 2. SMART SCROLL LOGIC (NU VOLLEDIG SYNCHROON MET MASTER)
-            setTimeout(() => {
-              const scrollContainer = document.getElementById('scroll-target');
-              const scrollWindow = document.querySelector('.scroll-window');
-              const progressBar = document.getElementById('text-progress-bar');
-              const progressTrack = document.getElementById('text-track');
-              const textHeight = scrollContainer.scrollHeight;
-              const windowHeight = scrollWindow.offsetHeight;
-
-              // Totale tijd van de Master (bijv. 30000ms)
-              const masterTotalTime = data.displayTime || 30000;
-
-              if (textHeight > windowHeight) {
-                const distance = textHeight - windowHeight + 40;
-                
-                // We gebruiken de Master tijd als basis voor de totale animatie
-                const totalDurationMs = masterTotalTime;
-                const startPausePercent = (VIEWER_CONFIG.pauseAtStart / totalDurationMs) * 100;
-                const endPausePercent = 100 - ((VIEWER_CONFIG.pauseAtEnd / totalDurationMs) * 100);
-                
-                if (VIEWER_CONFIG.showTextProgress) progressTrack.style.display = 'block';
-
-                const styleId = 'dynamic-animations';
-                let styleTag = document.getElementById(styleId);
-                if (!styleTag) {
-                  styleTag = document.createElement('style');
-                  styleTag.id = styleId;
-                  document.head.appendChild(styleTag);
-                }
-                styleTag.innerHTML = `
-                  @keyframes dynamicAutoScroll {
-                      0% { transform: translateY(0); }
-                      ${startPausePercent}% { transform: translateY(0); }
-                      ${endPausePercent}% { transform: translateY(-${distance}px); }
-                      100% { transform: translateY(-${distance}px); }
-                  }
-                  @keyframes dynamicProgressHeight {
-                      0% { height: 0%; }
-                      ${startPausePercent}% { height: 0%; }
-                      ${endPausePercent}% { height: 100%; }
-                      100% { height: 100%; }
-                  }
-                  #scroll-target { animation: dynamicAutoScroll ${totalDurationMs / 1000}s linear infinite; }
-                  #text-progress-bar { animation: dynamicProgressHeight ${totalDurationMs / 1000}s linear infinite; }
-                `;
-              } else {
-                scrollContainer.style.animation = "none";
-                progressTrack.style.display = 'none';
-              }
-            }, 200);
+            startScroll(data);
 
             // 3. PHOTO DISPLAY & CAROUSEL LOGIC
             return updateImages(data);
