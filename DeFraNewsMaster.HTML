@@ -144,10 +144,28 @@
             border: 2px solid #eee;
             background: #fff;
         }
+
+        /* TEST MODE INDICATOR */
+        #test-indicator {
+            position: absolute; 
+            top: 10px; 
+            left: 10px;
+            background: #d32f2f; 
+            color: white;
+            padding: 4px 10px; 
+            font-family: sans-serif; 
+            font-weight: bold; 
+            font-size: 12px;
+            border-radius: 4px; 
+            z-index: 10002; 
+            display: none;
+        }
     </style>
 </head>
 
 <body>
+    <div id="test-indicator">DEV/TEST MODE ACTIVE</div>
+
     <div id="qr-widget">
         <div class="qr-text-block">
             <span class="qr-title">Voeg jouw nieuws toe!</span>
@@ -160,6 +178,7 @@
                     <path d="M 15 11 L 21 16 L 15 21" />
                 </svg>
             </div>
+
         </div>
         <img class="qr-code" src="https://dekkersfransen.sharepoint.com/sites/D-F_Bedrijfsdata/Lists/DeFraNewsList/Attachments/7/DeFraNewsForm_QR_URL.png?web=1" alt="QR Code" />
     </div>
@@ -171,7 +190,7 @@
     <div id="bottom-fade"></div>
 
     <script>
-        // --- MASTER CONFIGURATIE ---
+        // --- MASTER CONFIGURATION ---
         const MASTER_CONFIG = {
             displayTime: 45*1000,            //Time per newsArticle in milliseconds
             fadeSpeed: 2.8,                 //Fade speed between articles in seconds
@@ -195,6 +214,10 @@
         const bottomMarginParam = params.get('bottomMargin');
         const bottomMarginPercent = bottomMarginParam ? parseFloat(bottomMarginParam) : MASTER_CONFIG.bottomMarginPercent;
         const zoomScale = (isFinite(zoomPercent) && zoomPercent > 0) ? (zoomPercent / 100) : 1;
+
+        // --- TEST MODE TRIGGER ---
+        const isTestMode = params.get('test') === 'true';
+        if (isTestMode) document.getElementById('test-indicator').style.display = 'block';
 
         let articles = [];
         let index = 0;
@@ -238,35 +261,39 @@
                 const rawArticles = data.articles || [];
                 
                 let validArticles = [];
-                let fallbackArticles = []; // NU EEN ARRAY VOOR MULTIPLE PLACEHOLDERS
+                let fallbackArticles = []; 
 
                 rawArticles.forEach(a => {
                     const itemStatus = (a.status || a.Status || 'ENABLED').toUpperCase();
 
+                    // 1. Altijd overslaan als Disabled
                     if (itemStatus === 'DISABLED') {
                         console.log(`[DISABLED - SKIPPED] ${a.title}`);
                         return;
                     }
 
+                    // 2. Verzamel Placeholders apart
                     if (itemStatus === 'PLACEHOLDER') {
                         console.log(`[PLACEHOLDER STORED] ${a.title}`);
-                        fallbackArticles.push({ ...a }); // Voeg toe aan de array
+                        fallbackArticles.push({ ...a });
                         return; 
                     }
 
-                    const start = a.start ? new Date(a.start) : new Date(0);
-                    const end = a.end ? new Date(a.end) : new Date(8640000000000000);
-                    
-                    const isValid = currentDate >= start && currentDate <= end;
-                    
-                    console.log(`[${isValid ? 'LIVE' : 'DATE-SKIP'}] ${a.title}`);
-                    if (!isValid) {
-                        if (currentDate < start) console.log(`   -> Starts at: ${start.toLocaleString()}`);
-                        if (currentDate > end) console.log(`   -> Expired on: ${end.toLocaleString()}`);
-                    }
+                    // 3. Filter voor weergave (Enabled of Test-in-Testmode)
+                    const isCandidate = (itemStatus === 'ENABLED') || (itemStatus === 'TEST' && isTestMode);
 
-                    if (isValid) {
-                        validArticles.push(a);
+                    if (isCandidate) {
+                        const start = a.start ? new Date(a.start) : new Date(0);
+                        const end = a.end ? new Date(a.end) : new Date(8640000000000000);
+                        const isValid = currentDate >= start && currentDate <= end;
+                        
+                        console.log(`[${isValid ? 'LIVE' : 'DATE-SKIP'}] ${a.title} (${itemStatus})`);
+                        
+                        if (isValid) {
+                            validArticles.push(a);
+                        }
+                    } else if (itemStatus === 'TEST') {
+                        console.log(`[TEST ITEM HIDDEN] ${a.title}`);
                     }
                 });
 
@@ -289,10 +316,8 @@
                     }
                 } else if (fallbackArticles.length > 0) {
                     console.log(`No valid articles found. Loading ${fallbackArticles.length} SharePoint placeholder(s).`);
-                    articles = fallbackArticles; // Gebruik de volledige array met placeholders
-                    
-                    renderArticleNav(); // Zorgt ervoor dat we bolletjes zien als we meerdere placeholders hebben
-                    
+                    articles = fallbackArticles; 
+                    renderArticleNav(); 
                     if (!window.timerStarted) {
                         window.timerStarted = true;
                         index = 0;
