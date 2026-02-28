@@ -86,10 +86,84 @@
             pointer-events: none;
             z-index: 9999;
         }
+
+        /* --- QR WIDGET OVERLAY --- */
+        #qr-widget {
+            position: absolute;
+            bottom: 35px; 
+            left: 40px;   
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10001; 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(8px);
+            padding: 12px 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .qr-text-block {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; 
+            margin-top: -5px;
+        }
+
+        .qr-title {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #1a4a7c; 
+            margin-bottom: -2px;
+        }
+
+        .qr-subtitle-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .qr-subtitle {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #666; 
+        }
+
+        .qr-arrow {
+            width: 35px;
+            height: 35px;
+        }
+
+        .qr-code {
+            width: 75px;
+            height: 75px;
+            border-radius: 8px;
+            object-fit: contain;
+            border: 2px solid #eee;
+            background: #fff;
+        }
     </style>
 </head>
 
 <body>
+    <div id="qr-widget">
+        <div class="qr-text-block">
+            <span class="qr-title">Voeg jouw nieuws toe!</span>
+            
+            <div class="qr-subtitle-row">
+                <span class="qr-subtitle">shorturl.at/Lp4kc</span>
+                
+                <svg class="qr-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#e67e22" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M 3 6 C 3 15, 10 16, 20 16" />
+                    <path d="M 15 11 L 21 16 L 15 21" />
+                </svg>
+            </div>
+        </div>
+        <img class="qr-code" src="https://dekkersfransen.sharepoint.com/sites/D-F_Bedrijfsdata/Lists/DeFraNewsList/Attachments/7/DeFraNewsForm_QR_URL.png?web=1" alt="QR Code" />
+    </div>
+
     <div id="article-nav"></div>
     <div id="viewer-wrap">
         <iframe id="viewer" src="DeFraNewsViewerTemplate.HTML"></iframe>
@@ -156,38 +230,67 @@
                 const res = await fetch(playlistUrl + (playlistUrl.includes('?') ? '&' : '?') + "t=" + Date.now());
                 const data = await res.json();
                 
-                const nu = new Date();
-                console.log("Huidige lokale tijd:", nu.toLocaleString());
+                const currentDate = new Date();
+                console.log("Current local time:", currentDate.toLocaleString());
 
                 const rawArticles = data.articles || [];
+                
+                let validArticles = [];
+                let fallbackArticles = []; // NU EEN ARRAY VOOR MULTIPLE PLACEHOLDERS
 
-                articles = rawArticles.filter(a => {
-                    // Browser interpreteert '2026-01-28T13:22:00' nu correct als lokale tijd
+                rawArticles.forEach(a => {
+                    const itemStatus = (a.status || a.Status || 'ENABLED').toUpperCase();
+
+                    if (itemStatus === 'DISABLED') {
+                        console.log(`[DISABLED - SKIPPED] ${a.title}`);
+                        return;
+                    }
+
+                    if (itemStatus === 'PLACEHOLDER') {
+                        console.log(`[PLACEHOLDER STORED] ${a.title}`);
+                        fallbackArticles.push({ ...a }); // Voeg toe aan de array
+                        return; 
+                    }
+
                     const start = a.start ? new Date(a.start) : new Date(0);
                     const end = a.end ? new Date(a.end) : new Date(8640000000000000);
                     
-                    const isGeldig = nu >= start && nu <= end;
+                    const isValid = currentDate >= start && currentDate <= end;
                     
-                    console.log(`[${isGeldig ? 'LIVE' : 'SKIP'}] ${a.title}`);
-                    if (nu < start) console.log(`   -> Start pas om: ${start.toLocaleString()}`);
-                    if (nu > end) console.log(`   -> Verlopen op: ${end.toLocaleString()}`);
+                    console.log(`[${isValid ? 'LIVE' : 'DATE-SKIP'}] ${a.title}`);
+                    if (!isValid) {
+                        if (currentDate < start) console.log(`   -> Starts at: ${start.toLocaleString()}`);
+                        if (currentDate > end) console.log(`   -> Expired on: ${end.toLocaleString()}`);
+                    }
 
-                    return isGeldig;
-
-                    
+                    if (isValid) {
+                        validArticles.push(a);
+                    }
                 });
 
-                articles.sort((a, b) => {
+                validArticles.sort((a, b) => {
                     const dateA = new Date(a.start || 0);
                     const dateB = new Date(b.start || 0);
                     return dateB - dateA; 
                 });
 
-                console.log("Aantal artikelen live:", articles.length);
-                console.log("--- EINDE PLAYLIST CHECK ---");
+                console.log("Total live articles:", validArticles.length);
+                console.log("--- END PLAYLIST CHECK ---");
 
-                if (articles.length > 0) {
+                if (validArticles.length > 0) {
+                    articles = validArticles;
                     renderArticleNav();
+                    if (!window.timerStarted) {
+                        window.timerStarted = true;
+                        index = 0;
+                        play();
+                    }
+                } else if (fallbackArticles.length > 0) {
+                    console.log(`No valid articles found. Loading ${fallbackArticles.length} SharePoint placeholder(s).`);
+                    articles = fallbackArticles; // Gebruik de volledige array met placeholders
+                    
+                    renderArticleNav(); // Zorgt ervoor dat we bolletjes zien als we meerdere placeholders hebben
+                    
                     if (!window.timerStarted) {
                         window.timerStarted = true;
                         index = 0;
@@ -197,7 +300,8 @@
                     showFallback();
                 }
             } catch (e) {
-                console.error("Fout bij laden playlist:", e);
+                console.error("Error loading playlist:", e);
+                showFallback();
             }
         }
 
@@ -251,14 +355,14 @@
         function updateViewerContent(art, currentIndex) {
             const payload = {
                 title: art.title,
-                subtitle: art.subtitle, // Nu direct gemapt op JSON key
-                content: art.content,   // Nu direct gemapt op JSON key
+                subtitle: art.subtitle, 
+                content: art.content,   
                 date: art.start || '',
                 authors: art.authors || 'Redactie Dekkers-Fransen',
                 images: art.images || [],
                 displayTime: MASTER_CONFIG.displayTime,
-                currentIndex: currentIndex,     // Send the current index to the TemplateViewer html
-                totalArticles: articles.length  // Send the total number of articles to the TemplateViewer html
+                currentIndex: currentIndex,     
+                totalArticles: articles.length  
             };
 
             if (viewerReady && viewer.contentWindow) {
@@ -271,12 +375,14 @@
         function renderArticleNav() {
             const nav = document.getElementById('article-nav');
             nav.innerHTML = '';
-            articles.forEach((_, i) => {
-                const dot = document.createElement('div');
-                dot.className = 'article-dot';
-                dot.id = 'dot-' + i;
-                nav.appendChild(dot);
-            });
+            if (articles.length > 1) {
+                articles.forEach((_, i) => {
+                    const dot = document.createElement('div');
+                    dot.className = 'article-dot';
+                    dot.id = 'dot-' + i;
+                    nav.appendChild(dot);
+                });
+            }
         }
 
         if (playlistUrl) loadPlaylist();
