@@ -180,7 +180,7 @@
             pillActiveColor: "#e67e22",
             pillCompletedColor: "#e67e22",
             pillBackgroundColor: "#e67d225c",
-            bottomMarginPercent: 5,        // Reserve space at bottom of screen (percent) for newsticker
+            bottomMarginPercent: 0,        // Reserve space at bottom of screen (percent) for newsticker
             defaultZoomPercent: 100,       // Default zoom percent when no URL param is set
             defaultDisplayTimeSec: 45      // Default display time in seconds (URL override)
         };
@@ -192,6 +192,8 @@
         const displayTimeParam = params.get('displayTime');
         const displayTimeSec = displayTimeParam ? parseFloat(displayTimeParam) : MASTER_CONFIG.defaultDisplayTimeSec;
         const displayTimeMs = (isFinite(displayTimeSec) && displayTimeSec > 0) ? (displayTimeSec * 1000) : MASTER_CONFIG.displayTime;
+        const bottomMarginParam = params.get('bottomMargin');
+        const bottomMarginPercent = bottomMarginParam ? parseFloat(bottomMarginParam) : MASTER_CONFIG.bottomMarginPercent;
         const zoomScale = (isFinite(zoomPercent) && zoomPercent > 0) ? (zoomPercent / 100) : 1;
 
         let articles = [];
@@ -218,7 +220,7 @@
         document.documentElement.style.setProperty('--pill-bg-color', MASTER_CONFIG.pillBackgroundColor);
         document.documentElement.style.setProperty('--pill-active-color', MASTER_CONFIG.pillActiveColor);
         document.documentElement.style.setProperty('--pill-completed-color', MASTER_CONFIG.pillCompletedColor);
-        document.documentElement.style.setProperty('--bottom-margin', MASTER_CONFIG.bottomMarginPercent + 'vh');
+        document.documentElement.style.setProperty('--bottom-margin', (isFinite(bottomMarginPercent) ? bottomMarginPercent : MASTER_CONFIG.bottomMarginPercent) + 'vh');
         document.documentElement.style.setProperty('--viewer-scale', zoomScale.toString());
         MASTER_CONFIG.displayTime = displayTimeMs;
 
